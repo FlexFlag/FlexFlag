@@ -1,0 +1,36 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30
+  write_timeout: 30
+  environment: development
+
+database:
+  host: localhost
+  port: 5432
+  username: flexflag
+  password: flexflag
+  database: flexflag
+  ssl_mode: disable
+  max_conns: 10
+  min_conns: 2
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  database: 0
+  ttl: 300
+
+auth:
+  jwt_secret: your-secret-key-change-in-production
+  api_keys:
+    - demo-api-key-1
+    - demo-api-key-2
+  token_expiry: 3600
+  refresh_expiry: 86400
+
+logging:
+  level: info
+  format: json
+  output: stdout
