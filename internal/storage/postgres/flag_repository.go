@@ -23,11 +23,11 @@ func NewFlagRepository(db *sql.DB) *FlagRepository {
 func (r *FlagRepository) Create(ctx context.Context, flag *types.Flag) error {
 	query := `
 		INSERT INTO flags (
-			id, key, name, description, type, enabled, 
+			id, project_id, key, name, description, type, enabled, 
 			default_value, variations, targeting, environment, 
 			tags, metadata, created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 		)`
 
 	// Ensure variations is never nil
@@ -63,6 +63,7 @@ func (r *FlagRepository) Create(ctx context.Context, flag *types.Flag) error {
 
 	_, err = r.db.ExecContext(ctx, query,
 		flag.ID,
+		flag.ProjectID,
 		flag.Key,
 		flag.Name,
 		flag.Description,
@@ -88,7 +89,7 @@ func (r *FlagRepository) Create(ctx context.Context, flag *types.Flag) error {
 func (r *FlagRepository) GetByKey(ctx context.Context, key, environment string) (*types.Flag, error) {
 	query := `
 		SELECT 
-			id, key, name, description, type, enabled,
+			id, project_id, key, name, description, type, enabled,
 			default_value, variations, targeting, environment,
 			tags, metadata, created_at, updated_at
 		FROM flags
@@ -101,6 +102,65 @@ func (r *FlagRepository) GetByKey(ctx context.Context, key, environment string) 
 
 	err := r.db.QueryRowContext(ctx, query, key, environment).Scan(
 		&flag.ID,
+		&flag.ProjectID,
+		&flag.Key,
+		&flag.Name,
+		&flag.Description,
+		&flag.Type,
+		&flag.Enabled,
+		&flag.Default,
+		&variationsJSON,
+		&targetingJSON,
+		&flag.Environment,
+		pq.Array(&flag.Tags),
+		&metadataJSON,
+		&flag.CreatedAt,
+		&flag.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("flag not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get flag: %w", err)
+	}
+
+	if err := json.Unmarshal(variationsJSON, &flag.Variations); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal variations: %w", err)
+	}
+
+	if targetingJSON.Valid {
+		if err := json.Unmarshal([]byte(targetingJSON.String), &flag.Targeting); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal targeting: %w", err)
+		}
+	}
+
+	if metadataJSON.Valid {
+		if err := json.Unmarshal([]byte(metadataJSON.String), &flag.Metadata); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		}
+	}
+
+	return flag, nil
+}
+
+func (r *FlagRepository) GetByProjectKey(ctx context.Context, projectID, key, environment string) (*types.Flag, error) {
+	query := `
+		SELECT 
+			id, project_id, key, name, description, type, enabled,
+			default_value, variations, targeting, environment,
+			tags, metadata, created_at, updated_at
+		FROM flags
+		WHERE project_id = $1 AND key = $2 AND environment = $3`
+
+	flag := &types.Flag{}
+	var variationsJSON []byte
+	var targetingJSON sql.NullString
+	var metadataJSON sql.NullString
+
+	err := r.db.QueryRowContext(ctx, query, projectID, key, environment).Scan(
+		&flag.ID,
+		&flag.ProjectID,
 		&flag.Key,
 		&flag.Name,
 		&flag.Description,
@@ -145,7 +205,7 @@ func (r *FlagRepository) GetByKey(ctx context.Context, key, environment string) 
 func (r *FlagRepository) List(ctx context.Context, environment string) ([]*types.Flag, error) {
 	query := `
 		SELECT 
-			id, key, name, description, type, enabled,
+			id, project_id, key, name, description, type, enabled,
 			default_value, variations, targeting, environment,
 			tags, metadata, created_at, updated_at
 		FROM flags
@@ -167,6 +227,7 @@ func (r *FlagRepository) List(ctx context.Context, environment string) ([]*types
 
 		err := rows.Scan(
 			&flag.ID,
+			&flag.ProjectID,
 			&flag.Key,
 			&flag.Name,
 			&flag.Description,
@@ -199,6 +260,75 @@ func (r *FlagRepository) List(ctx context.Context, environment string) ([]*types
 			if err := json.Unmarshal([]byte(metadataJSON.String), &flag.Metadata); err != nil {
 				return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 			}
+		}
+
+		flags = append(flags, flag)
+	}
+
+	return flags, nil
+}
+
+// ListByProject retrieves flags filtered by project_id and environment
+func (r *FlagRepository) ListByProject(ctx context.Context, projectID, environment string) ([]*types.Flag, error) {
+	query := `
+		SELECT 
+			id, project_id, key, name, description, type, enabled,
+			default_value, variations, targeting, environment,
+			tags, metadata, created_at, updated_at
+		FROM flags
+		WHERE project_id = $1 AND environment = $2
+		ORDER BY created_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, query, projectID, environment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list flags by project: %w", err)
+	}
+	defer rows.Close()
+
+	var flags []*types.Flag
+	for rows.Next() {
+		flag := &types.Flag{}
+		var variationsJSON []byte
+		var targetingJSON sql.NullString
+		var metadataJSON sql.NullString
+
+		err := rows.Scan(
+			&flag.ID,
+			&flag.ProjectID,
+			&flag.Key,
+			&flag.Name,
+			&flag.Description,
+			&flag.Type,
+			&flag.Enabled,
+			&flag.Default,
+			&variationsJSON,
+			&targetingJSON,
+			&flag.Environment,
+			pq.Array(&flag.Tags),
+			&metadataJSON,
+			&flag.CreatedAt,
+			&flag.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan flag: %w", err)
+		}
+
+		if err := json.Unmarshal(variationsJSON, &flag.Variations); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal variations: %w", err)
+		}
+
+		if targetingJSON.Valid {
+			if err := json.Unmarshal([]byte(targetingJSON.String), &flag.Targeting); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal targeting: %w", err)
+			}
+		}
+
+		if metadataJSON.Valid {
+			if err := json.Unmarshal([]byte(metadataJSON.String), &flag.Metadata); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+			}
+		} else {
+			flag.Metadata = make(map[string]interface{})
 		}
 
 		flags = append(flags, flag)
@@ -327,6 +457,7 @@ func (r *FlagRepository) ListByTags(ctx context.Context, environment string, tag
 
 		err := rows.Scan(
 			&flag.ID,
+			&flag.ProjectID,
 			&flag.Key,
 			&flag.Name,
 			&flag.Description,

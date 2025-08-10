@@ -127,7 +127,16 @@ func (h *UltraFastHandler) UltraFastEvaluate(c *gin.Context) {
 	
 	if !exists {
 		// Flag not in cache - fetch and cache it
-		dbFlag, err := h.repo.GetByKey(c.Request.Context(), req.FlagKey, environment)
+		projectID := c.Query("project_id")
+		var dbFlag *types.Flag
+		var err error
+		
+		if projectID != "" {
+			dbFlag, err = h.repo.GetByProjectKey(c.Request.Context(), projectID, req.FlagKey, environment)
+		} else {
+			dbFlag, err = h.repo.GetByKey(c.Request.Context(), req.FlagKey, environment)
+		}
+		
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "flag not found"})
 			return
@@ -303,6 +312,68 @@ func (h *UltraFastHandler) cleanupExpiredCaches() {
 		}
 		h.cacheMu.Unlock()
 	}
+}
+
+// RefreshFlag refreshes a specific flag in the cache
+func (h *UltraFastHandler) RefreshFlag(flagKey, environment string) {
+	ctx := context.Background()
+	// Try to get the flag - use GetByKey since we don't have project context here
+	flag, err := h.repo.GetByKey(ctx, flagKey, environment)
+	if err != nil {
+		// Flag might have been deleted - remove from cache
+		h.mu.Lock()
+		delete(h.flags, flagKey+":"+environment)
+		h.mu.Unlock()
+		
+		// Also clear related response caches
+		h.cacheMu.Lock()
+		for key := range h.responseCaches {
+			if contains([]string{key}, flagKey) {
+				delete(h.responseCaches, key)
+			}
+		}
+		h.cacheMu.Unlock()
+		return
+	}
+	
+	// Pre-unmarshal default value
+	var defaultValue interface{}
+	json.Unmarshal(flag.Default, &defaultValue)
+	
+	precomputed := &PrecomputedFlag{
+		Key:          flag.Key,
+		Enabled:      flag.Enabled,
+		DefaultValue: defaultValue,
+		DefaultJSON:  flag.Default,
+		Type:         flag.Type,
+		HasTargeting: flag.Targeting != nil,
+		Variations:   flag.Variations,
+		Targeting:    flag.Targeting,
+		LastUpdated:  flag.UpdatedAt,
+	}
+	
+	h.mu.Lock()
+	h.flags[flagKey+":"+environment] = precomputed
+	h.mu.Unlock()
+	
+	// Clear related response caches since flag changed
+	h.cacheMu.Lock()
+	for key := range h.responseCaches {
+		if contains([]string{key}, flagKey) {
+			delete(h.responseCaches, key)
+		}
+	}
+	h.cacheMu.Unlock()
+}
+
+// RefreshAllFlags refreshes all flags in the cache
+func (h *UltraFastHandler) RefreshAllFlags() {
+	go h.preloadFlags()
+	
+	// Clear all response caches
+	h.cacheMu.Lock()
+	h.responseCaches = make(map[string]*CachedResponse)
+	h.cacheMu.Unlock()
 }
 
 func (h *UltraFastHandler) GetStats(c *gin.Context) {
