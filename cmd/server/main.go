@@ -10,7 +10,10 @@ import (
 	"time"
 
 	"github.com/flexflag/flexflag/internal/api/handlers"
+	"github.com/flexflag/flexflag/internal/api/middleware"
+	"github.com/flexflag/flexflag/internal/auth"
 	"github.com/flexflag/flexflag/internal/config"
+	"github.com/flexflag/flexflag/internal/services"
 	"github.com/flexflag/flexflag/internal/storage/postgres"
 	"github.com/gin-gonic/gin"
 )
@@ -43,15 +46,35 @@ func main() {
 	}
 	defer db.Close()
 
+	// Initialize repositories
 	flagRepo := postgres.NewFlagRepository(db)
-	flagHandler := handlers.NewFlagHandler(flagRepo)
-	evaluationHandler := handlers.NewEvaluationHandler(flagRepo)
-	optimizedEvalHandler := handlers.NewOptimizedEvaluationHandler(flagRepo)
+	userRepo := postgres.NewUserRepository(db)
+	projectRepo := postgres.NewProjectRepository(db)
+	segmentRepo := postgres.NewSegmentRepository(db)
+	rolloutRepo := postgres.NewRolloutRepository(db)
+	auditRepo := postgres.NewAuditRepository(db)
+	
+	// Initialize services
+	auditService := services.NewAuditService(auditRepo)
+	
+	// Initialize auth
+	jwtManager := auth.NewJWTManager("your-secret-key-here", 24*time.Hour)
+	
+	// Initialize handlers
 	ultraFastHandler := handlers.NewUltraFastHandler(flagRepo)
+	flagHandler := handlers.NewFlagHandler(flagRepo, auditService, ultraFastHandler)
+	authHandler := handlers.NewAuthHandler(userRepo, jwtManager)
+	projectHandler := handlers.NewProjectHandler(projectRepo, flagRepo, segmentRepo, rolloutRepo)
+	segmentHandler := handlers.NewSegmentHandler(segmentRepo)
+	rolloutHandler := handlers.NewRolloutHandler(rolloutRepo)
+	auditHandler := handlers.NewAuditHandler(auditRepo)
+	evaluationHandler := handlers.NewEvaluationHandler(flagRepo, rolloutRepo)
+	optimizedEvalHandler := handlers.NewOptimizedEvaluationHandler(flagRepo)
 
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
+	r.Use(middleware.CORS())
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -62,27 +85,122 @@ func main() {
 
 	api := r.Group("/api/v1")
 	{
-		// Flag management
-		api.POST("/flags", flagHandler.CreateFlag)
-		api.GET("/flags", flagHandler.ListFlags)
-		api.GET("/flags/:key", flagHandler.GetFlag)
-		api.PUT("/flags/:key", flagHandler.UpdateFlag)
-		api.DELETE("/flags/:key", flagHandler.DeleteFlag)
-		api.POST("/flags/:key/toggle", flagHandler.ToggleFlag)
+		// Authentication endpoints (public)
+		api.POST("/auth/register", authHandler.Register)
+		api.POST("/auth/login", authHandler.Login)
+		api.POST("/auth/refresh", authHandler.RefreshToken)
 		
-		// Standard flag evaluation
-		api.POST("/evaluate", evaluationHandler.Evaluate)
-		api.POST("/evaluate/batch", evaluationHandler.BatchEvaluate)
+		// Protected authentication endpoints
+		authGroup := api.Group("/auth")
+		authGroup.Use(auth.AuthMiddleware(jwtManager))
+		{
+			authGroup.GET("/profile", authHandler.GetProfile)
+			authGroup.PUT("/profile", authHandler.UpdateProfile)
+			authGroup.POST("/change-password", authHandler.ChangePassword)
+			authGroup.POST("/logout", authHandler.Logout)
+		}
 		
-		// Optimized flag evaluation (with caching)
-		api.POST("/evaluate/fast", optimizedEvalHandler.FastEvaluate)
-		api.POST("/evaluate/fast/batch", optimizedEvalHandler.FastBatchEvaluate)
-		api.GET("/evaluate/cache/stats", optimizedEvalHandler.GetCacheStats)
-		api.POST("/evaluate/cache/clear", optimizedEvalHandler.ClearCache)
+		// Project statistics endpoint (must come before projects group to avoid conflicts)
+		api.GET("/project-stats/:id", auth.AuthMiddleware(jwtManager), projectHandler.GetProjectStats)
 		
-		// Ultra-fast flag evaluation (with preloading and response caching)
-		api.POST("/evaluate/ultra", ultraFastHandler.UltraFastEvaluate)
-		api.GET("/evaluate/ultra/stats", ultraFastHandler.GetStats)
+		// Project management (require authentication)
+		projects := api.Group("/projects")
+		projects.Use(auth.AuthMiddleware(jwtManager))
+		{
+			projects.POST("", auth.RequireEditorOrAdmin(), projectHandler.CreateProject)
+			projects.GET("", projectHandler.ListProjects)
+			projects.GET("/:slug", projectHandler.GetProject)
+			projects.PUT("/:slug", auth.RequireEditorOrAdmin(), projectHandler.UpdateProject)
+			projects.DELETE("/:slug", auth.RequireAdmin(), projectHandler.DeleteProject)
+			
+			// Environment endpoints
+			projects.POST("/:slug/environments", auth.RequireEditorOrAdmin(), projectHandler.CreateEnvironment)
+			projects.GET("/:slug/environments", projectHandler.GetEnvironments)
+		}
+		
+		// Segment management (require authentication)
+		segments := api.Group("/segments")
+		segments.Use(auth.AuthMiddleware(jwtManager))
+		{
+			segments.POST("", auth.RequireEditorOrAdmin(), segmentHandler.CreateSegment)
+			segments.GET("", segmentHandler.ListSegments)
+			segments.GET("/:key", segmentHandler.GetSegment)
+			segments.PUT("/:key", auth.RequireEditorOrAdmin(), segmentHandler.UpdateSegment)
+			segments.DELETE("/:key", auth.RequireEditorOrAdmin(), segmentHandler.DeleteSegment)
+			segments.POST("/evaluate", segmentHandler.EvaluateSegment)
+		}
+		
+		// Rollout management (require authentication)
+		rollouts := api.Group("/rollouts")
+		rollouts.Use(auth.AuthMiddleware(jwtManager))
+		{
+			rollouts.POST("", auth.RequireEditorOrAdmin(), rolloutHandler.CreateRollout)
+			rollouts.GET("", func(c *gin.Context) {
+				// Check if flag_id is provided to determine which handler to use
+				flagID := c.Query("flag_id")
+				if flagID != "" {
+					rolloutHandler.GetRolloutsByFlag(c)
+				} else {
+					rolloutHandler.GetAllRollouts(c)
+				}
+			})
+			rollouts.GET("/:id", rolloutHandler.GetRollout)
+			rollouts.PUT("/:id", auth.RequireEditorOrAdmin(), rolloutHandler.UpdateRollout)
+			rollouts.DELETE("/:id", auth.RequireEditorOrAdmin(), rolloutHandler.DeleteRollout)
+			rollouts.POST("/:id/activate", auth.RequireEditorOrAdmin(), rolloutHandler.ActivateRollout)
+			rollouts.POST("/:id/pause", auth.RequireEditorOrAdmin(), rolloutHandler.PauseRollout)
+			rollouts.POST("/:id/complete", auth.RequireEditorOrAdmin(), rolloutHandler.CompleteRollout)
+			rollouts.POST("/:id/evaluate", rolloutHandler.EvaluateRollout)
+		}
+		
+		// Sticky assignment management (require authentication)
+		assignments := api.Group("/assignments")
+		assignments.Use(auth.AuthMiddleware(jwtManager))
+		{
+			assignments.GET("/sticky", rolloutHandler.GetStickyAssignments)
+			assignments.DELETE("/sticky", auth.RequireEditorOrAdmin(), rolloutHandler.DeleteStickyAssignment)
+			assignments.POST("/cleanup", auth.RequireEditorOrAdmin(), rolloutHandler.CleanupExpiredAssignments)
+		}
+		
+		// Flag management (require authentication)
+		flags := api.Group("/flags")
+		flags.Use(auth.AuthMiddleware(jwtManager))
+		{
+			flags.POST("", auth.RequireEditorOrAdmin(), flagHandler.CreateFlag)
+			flags.GET("", flagHandler.ListFlags)
+			flags.GET("/:key", flagHandler.GetFlag)
+			flags.PUT("/:key", auth.RequireEditorOrAdmin(), flagHandler.UpdateFlag)
+			flags.DELETE("/:key", auth.RequireEditorOrAdmin(), flagHandler.DeleteFlag)
+			flags.POST("/:key/toggle", auth.RequireEditorOrAdmin(), flagHandler.ToggleFlag)
+		}
+		
+		// Audit logs (require authentication)
+		audit := api.Group("/audit")
+		audit.Use(auth.AuthMiddleware(jwtManager))
+		{
+			audit.GET("/logs", auditHandler.ListAuditLogs)
+			audit.GET("/logs/resource", auditHandler.ListAuditLogsByResource)
+		}
+		
+		// Flag evaluation (public or optional auth for analytics)
+		api.POST("/evaluate", auth.OptionalAuth(jwtManager), evaluationHandler.Evaluate)
+		api.POST("/evaluate/batch", auth.OptionalAuth(jwtManager), evaluationHandler.BatchEvaluate)
+		
+		// Optimized flag evaluation
+		api.POST("/evaluate/fast", auth.OptionalAuth(jwtManager), optimizedEvalHandler.FastEvaluate)
+		api.POST("/evaluate/fast/batch", auth.OptionalAuth(jwtManager), optimizedEvalHandler.FastBatchEvaluate)
+		
+		// Cache management (require authentication)
+		cache := api.Group("/evaluate/cache")
+		cache.Use(auth.AuthMiddleware(jwtManager))
+		{
+			cache.GET("/stats", optimizedEvalHandler.GetCacheStats)
+			cache.POST("/clear", auth.RequireEditorOrAdmin(), optimizedEvalHandler.ClearCache)
+		}
+		
+		// Ultra-fast flag evaluation
+		api.POST("/evaluate/ultra", auth.OptionalAuth(jwtManager), ultraFastHandler.UltraFastEvaluate)
+		api.GET("/evaluate/ultra/stats", auth.AuthMiddleware(jwtManager), ultraFastHandler.GetStats)
 	}
 
 	srv := &http.Server{

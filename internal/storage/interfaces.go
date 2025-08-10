@@ -9,9 +9,11 @@ import (
 type FlagRepository interface {
 	Create(ctx context.Context, flag *types.Flag) error
 	GetByKey(ctx context.Context, key, environment string) (*types.Flag, error)
+	GetByProjectKey(ctx context.Context, projectID, key, environment string) (*types.Flag, error)
 	Update(ctx context.Context, flag *types.Flag) error
 	Delete(ctx context.Context, key, environment string) error
 	List(ctx context.Context, environment string) ([]*types.Flag, error)
+	ListByProject(ctx context.Context, projectID, environment string) ([]*types.Flag, error)
 	ListByTags(ctx context.Context, environment string, tags []string) ([]*types.Flag, error)
 }
 
@@ -34,6 +36,13 @@ type EvaluationStats struct {
 	TotalCount    int64             `json:"total_count"`
 	VariationCounts map[string]int64 `json:"variation_counts"`
 	LastEvaluated *types.EvaluationResponse `json:"last_evaluated"`
+}
+
+type AuditRepository interface {
+	Create(ctx context.Context, log *types.AuditLog) error
+	List(ctx context.Context, projectID string, limit, offset int) ([]*types.AuditLog, error)
+	ListByResource(ctx context.Context, resourceType, resourceID string, limit, offset int) ([]*types.AuditLog, error)
+	ListByUser(ctx context.Context, userID string, limit, offset int) ([]*types.AuditLog, error)
 }
 
 type Cache interface {

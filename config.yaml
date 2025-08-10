@@ -7,7 +7,7 @@ server:
 
 database:
   host: localhost
-  port: 5432
+  port: 5433
   username: flexflag
   password: flexflag
   database: flexflag

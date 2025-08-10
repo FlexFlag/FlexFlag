@@ -15,6 +15,7 @@ func main() {
 	var databaseURL = flag.String("database-url", "postgres://localhost/flexflag?sslmode=disable", "Database URL")
 	var migrationsPath = flag.String("migrations-path", "file://migrations", "Path to migrations directory")
 	var direction = flag.String("direction", "up", "Migration direction: up or down")
+	var forceVersion = flag.Int("force-version", -1, "Force migration version (use to fix dirty state)")
 	flag.Parse()
 
 	db, err := sql.Open("postgres", *databaseURL)
@@ -31,6 +32,15 @@ func main() {
 	m, err := migrate.NewWithDatabaseInstance(*migrationsPath, "postgres", driver)
 	if err != nil {
 		log.Fatalf("Could not create migrate instance: %v", err)
+	}
+
+	// Force version if specified (to fix dirty state)
+	if *forceVersion >= 0 {
+		if err := m.Force(*forceVersion); err != nil {
+			log.Fatalf("Could not force version: %v", err)
+		}
+		log.Printf("Forced migration version to %d", *forceVersion)
+		return
 	}
 
 	switch *direction {
