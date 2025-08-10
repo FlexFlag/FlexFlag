@@ -1,15 +1,30 @@
 import { Flag, CreateFlagRequest, EvaluationRequest, EvaluationResponse, PerformanceStats, UltraFastStats } from '@/types';
 
-const API_BASE = '/api/v1';
+const API_BASE = 'http://localhost:8080/api/v1';
 
 class ApiClient {
+  private getAuthToken(): string | null {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('token');
+    }
+    return null;
+  }
+
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    const token = this.getAuthToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    };
+
+    // Add authorization header if token exists
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`${API_BASE}${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
       ...options,
+      headers,
     });
 
     if (!response.ok) {
@@ -30,8 +45,12 @@ class ApiClient {
     });
   }
 
-  async getFlags(environment = 'production'): Promise<Flag[]> {
-    const response = await this.request<{flags: Flag[]}>(`/flags?environment=${environment}`);
+  async getFlags(environment = 'production', projectId?: string): Promise<Flag[]> {
+    const params = new URLSearchParams({ environment });
+    if (projectId) {
+      params.append('project_id', projectId);
+    }
+    const response = await this.request<{flags: Flag[]}>(`/flags?${params.toString()}`);
     return response.flags || [];
   }
 
@@ -55,29 +74,45 @@ class ApiClient {
     });
   }
 
-  async toggleFlag(key: string, environment = 'production'): Promise<Flag> {
-    return this.request<Flag>(`/flags/${key}/toggle?environment=${environment}`, {
+  async toggleFlag(key: string, environment = 'production', projectId?: string): Promise<Flag> {
+    const params = new URLSearchParams({ environment });
+    if (projectId) {
+      params.append('project_id', projectId);
+    }
+    return this.request<Flag>(`/flags/${key}/toggle?${params.toString()}`, {
       method: 'POST',
     });
   }
 
   // Flag Evaluation
-  async evaluateFlag(request: EvaluationRequest, environment = 'production'): Promise<EvaluationResponse> {
-    return this.request<EvaluationResponse>(`/evaluate?environment=${environment}`, {
+  async evaluateFlag(request: EvaluationRequest, environment = 'production', projectId?: string): Promise<EvaluationResponse> {
+    const params = new URLSearchParams({ environment });
+    if (projectId) {
+      params.append('project_id', projectId);
+    }
+    return this.request<EvaluationResponse>(`/evaluate?${params.toString()}`, {
       method: 'POST',
       body: JSON.stringify(request),
     });
   }
 
-  async evaluateFlagFast(request: EvaluationRequest, environment = 'production'): Promise<EvaluationResponse> {
-    return this.request<EvaluationResponse>(`/evaluate/fast?environment=${environment}`, {
+  async evaluateFlagFast(request: EvaluationRequest, environment = 'production', projectId?: string): Promise<EvaluationResponse> {
+    const params = new URLSearchParams({ environment });
+    if (projectId) {
+      params.append('project_id', projectId);
+    }
+    return this.request<EvaluationResponse>(`/evaluate/fast?${params.toString()}`, {
       method: 'POST',
       body: JSON.stringify(request),
     });
   }
 
-  async evaluateFlagUltraFast(request: EvaluationRequest, environment = 'production'): Promise<EvaluationResponse> {
-    return this.request<EvaluationResponse>(`/evaluate/ultra?environment=${environment}`, {
+  async evaluateFlagUltraFast(request: EvaluationRequest, environment = 'production', projectId?: string): Promise<EvaluationResponse> {
+    const params = new URLSearchParams({ environment });
+    if (projectId) {
+      params.append('project_id', projectId);
+    }
+    return this.request<EvaluationResponse>(`/evaluate/ultra?${params.toString()}`, {
       method: 'POST',
       body: JSON.stringify(request),
     });
@@ -116,6 +151,50 @@ class ApiClient {
     return this.request<void>('/evaluate/cache/clear', {
       method: 'POST',
     });
+  }
+
+  // Projects Management
+  async getProjects(): Promise<any[]> {
+    const response = await this.request<{projects: any[]}>('/projects');
+    return response.projects || [];
+  }
+
+  async createProject(project: any): Promise<any> {
+    return this.request<any>('/projects', {
+      method: 'POST',
+      body: JSON.stringify(project),
+    });
+  }
+
+  async getProjectStats(projectId: string): Promise<{flags: number, segments: number, rollouts: number}> {
+    return this.request<{flags: number, segments: number, rollouts: number}>(`/project-stats/${projectId}`);
+  }
+
+  // Audit Logs (placeholder - backend endpoint would be needed)
+  async getAuditLogs(projectId?: string): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (projectId) {
+      params.append('project_id', projectId);
+    }
+    
+    const response = await this.request<{logs: any[]}>(`/audit/logs?${params.toString()}`);
+    return response.logs || [];
+  }
+
+  // User Management (placeholder)
+  async getUsers(): Promise<any[]> {
+    // Mock data for now
+    return Promise.resolve([
+      {
+        id: '1',
+        email: 'admin@example.com',
+        full_name: 'Admin User',
+        role: 'admin',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        last_login: new Date().toISOString(),
+      }
+    ]);
   }
 
   // Health Check

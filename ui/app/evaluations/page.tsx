@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -38,6 +38,8 @@ import {
 } from '@mui/icons-material';
 import { apiClient } from '@/lib/api';
 import { EvaluationRequest, EvaluationResponse } from '@/types';
+import { useProject } from '@/contexts/ProjectContext';
+import { useEnvironment } from '@/contexts/EnvironmentContext';
 
 interface EvaluationResult extends EvaluationResponse {
   id: string;
@@ -46,18 +48,49 @@ interface EvaluationResult extends EvaluationResponse {
 }
 
 function EvaluationTester() {
+  const { currentProject } = useProject();
+  const { currentEnvironment } = useEnvironment();
   const [request, setRequest] = useState<EvaluationRequest>({
-    flag_key: 'new-feature',
+    flag_key: '',
     user_id: 'test-user-123',
     attributes: {},
   });
-  const [environment, setEnvironment] = useState('production');
   const [endpoint, setEndpoint] = useState<'standard' | 'fast' | 'ultra'>('ultra');
   const [result, setResult] = useState<EvaluationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attributeKey, setAttributeKey] = useState('');
   const [attributeValue, setAttributeValue] = useState('');
+  const [flags, setFlags] = useState<any[]>([]);
+  const [loadingFlags, setLoadingFlags] = useState(false);
+
+  // Fetch flags for the current project and environment
+  const fetchFlags = async () => {
+    if (!currentProject) {
+      setFlags([]);
+      return;
+    }
+
+    setLoadingFlags(true);
+    try {
+      const flagsData = await apiClient.getFlags(currentEnvironment, currentProject.id);
+      setFlags(flagsData);
+      
+      // If no flag is selected and there are flags available, select the first one
+      if (!request.flag_key && flagsData.length > 0) {
+        setRequest(prev => ({ ...prev, flag_key: flagsData[0].key }));
+      }
+    } catch (err) {
+      console.error('Failed to fetch flags:', err);
+      setFlags([]);
+    } finally {
+      setLoadingFlags(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFlags();
+  }, [currentProject, currentEnvironment]);
 
   const addAttribute = () => {
     if (attributeKey && attributeValue) {
@@ -92,13 +125,13 @@ function EvaluationTester() {
       
       switch (endpoint) {
         case 'standard':
-          response = await apiClient.evaluateFlag(request, environment);
+          response = await apiClient.evaluateFlag(request, currentEnvironment, currentProject?.id);
           break;
         case 'fast':
-          response = await apiClient.evaluateFlagFast(request, environment);
+          response = await apiClient.evaluateFlagFast(request, currentEnvironment, currentProject?.id);
           break;
         case 'ultra':
-          response = await apiClient.evaluateFlagUltraFast(request, environment);
+          response = await apiClient.evaluateFlagUltraFast(request, currentEnvironment, currentProject?.id);
           break;
       }
 
@@ -140,13 +173,31 @@ function EvaluationTester() {
             
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
-                <TextField
-                  label="Flag Key"
-                  value={request.flag_key}
-                  onChange={(e) => setRequest({ ...request, flag_key: e.target.value })}
-                  fullWidth
-                  placeholder="my-awesome-feature"
-                />
+                <FormControl fullWidth>
+                  <InputLabel>Flag</InputLabel>
+                  <Select
+                    value={request.flag_key}
+                    label="Flag"
+                    onChange={(e) => setRequest({ ...request, flag_key: e.target.value })}
+                    disabled={loadingFlags || !currentProject || flags.length === 0}
+                  >
+                    {flags.map((flag) => (
+                      <MenuItem key={flag.id} value={flag.key}>
+                        <Box>
+                          <Typography variant="body2">{flag.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {flag.key} • {flag.type} • {flag.enabled ? 'Enabled' : 'Disabled'}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                    {flags.length === 0 && !loadingFlags && (
+                      <MenuItem disabled>
+                        {currentProject ? 'No flags in this project' : 'Select a project first'}
+                      </MenuItem>
+                    )}
+                  </Select>
+                </FormControl>
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
@@ -167,18 +218,13 @@ function EvaluationTester() {
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Environment</InputLabel>
-                  <Select
-                    value={environment}
-                    label="Environment"
-                    onChange={(e) => setEnvironment(e.target.value)}
-                  >
-                    <MenuItem value="production">Production</MenuItem>
-                    <MenuItem value="staging">Staging</MenuItem>
-                    <MenuItem value="development">Development</MenuItem>
-                  </Select>
-                </FormControl>
+                <TextField
+                  label="Environment"
+                  value={currentEnvironment}
+                  fullWidth
+                  disabled
+                  helperText="Environment is controlled by the global environment selector"
+                />
               </Grid>
             </Grid>
 
@@ -447,8 +493,9 @@ function EvaluationTester() {
                 <Button
                   variant="outlined"
                   fullWidth
+                  disabled={!request.flag_key}
                   onClick={() => setRequest({
-                    flag_key: 'new-feature',
+                    flag_key: request.flag_key,
                     user_id: 'premium-user',
                     attributes: { plan: 'premium', region: 'us-west-1' }
                   })}
@@ -460,8 +507,9 @@ function EvaluationTester() {
                 <Button
                   variant="outlined"
                   fullWidth
+                  disabled={!request.flag_key}
                   onClick={() => setRequest({
-                    flag_key: 'new-feature',
+                    flag_key: request.flag_key,
                     user_id: 'basic-user',
                     attributes: { plan: 'basic', region: 'us-east-1' }
                   })}
@@ -473,8 +521,9 @@ function EvaluationTester() {
                 <Button
                   variant="outlined"
                   fullWidth
+                  disabled={!request.flag_key}
                   onClick={() => setRequest({
-                    flag_key: 'beta-feature',
+                    flag_key: request.flag_key,
                     user_id: 'beta-tester',
                     attributes: { beta: 'true', role: 'tester' }
                   })}
@@ -486,8 +535,9 @@ function EvaluationTester() {
                 <Button
                   variant="outlined"
                   fullWidth
+                  disabled={!request.flag_key}
                   onClick={() => setRequest({
-                    flag_key: 'new-feature',
+                    flag_key: request.flag_key,
                     user_id: `random-${Math.floor(Math.random() * 1000)}`,
                     attributes: {}
                   })}

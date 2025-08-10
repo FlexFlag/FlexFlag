@@ -1,5 +1,6 @@
 export interface Flag {
   id?: string;
+  project_id?: string;
   key: string;
   name: string;
   description?: string;
@@ -84,6 +85,7 @@ export interface CreateFlagRequest {
   type: Flag['type'];
   enabled: boolean;
   default: any;
+  project_id?: string;
   variations?: Omit<Variation, 'id'>[];
   targeting?: TargetingConfig;
 }

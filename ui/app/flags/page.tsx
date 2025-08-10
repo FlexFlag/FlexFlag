@@ -36,10 +36,15 @@ import {
   Pause as PauseIcon,
   Flag as FlagIcon,
   Warning as AlertIcon,
+  AccountTree as ProjectIcon,
+  Download as DownloadIcon,
+  Upload as UploadIcon,
 } from '@mui/icons-material';
 import { DataGrid, GridColDef, GridRowParams } from '@mui/x-data-grid';
 import { apiClient } from '@/lib/api';
 import { Flag, CreateFlagRequest } from '@/types';
+import { useProject } from '@/contexts/ProjectContext';
+import { useEnvironment } from '@/contexts/EnvironmentContext';
 
 interface FlagCardProps {
   flag: Flag;
@@ -424,13 +429,192 @@ function CreateFlagDialog({ open, onClose, onSave }: {
   );
 }
 
+function ImportFlagDialog({ 
+  open, 
+  onClose, 
+  onImport 
+}: { 
+  open: boolean; 
+  onClose: () => void; 
+  onImport: (data: any) => void; 
+}) {
+  const [importData, setImportData] = useState<string>('');
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleImport = () => {
+    try {
+      const data = JSON.parse(importData);
+      onImport(data);
+      setImportData('');
+      setParseError(null);
+    } catch (err) {
+      setParseError('Invalid JSON format');
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        setImportData(content);
+        setParseError(null);
+        try {
+          JSON.parse(content);
+        } catch {
+          setParseError('Invalid JSON format');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        setImportData(content);
+        setParseError(null);
+        try {
+          JSON.parse(content);
+        } catch {
+          setParseError('Invalid JSON format');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const isValidJson = () => {
+    try {
+      if (!importData.trim()) return false;
+      const data = JSON.parse(importData);
+      return data.flags && Array.isArray(data.flags);
+    } catch {
+      return false;
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>Import Feature Flags</DialogTitle>
+      <DialogContent>
+        <Box display="flex" flexDirection="column" gap={3} pt={1}>
+          <Typography variant="body2" color="text.secondary">
+            Import flags from a JSON file exported from FlexFlag or in the compatible format.
+          </Typography>
+
+          {/* File Upload Area */}
+          <Box
+            sx={{
+              border: `2px dashed ${dragOver ? 'primary.main' : 'grey.300'}`,
+              borderRadius: 2,
+              p: 3,
+              textAlign: 'center',
+              bgcolor: dragOver ? 'primary.50' : 'grey.50',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => document.getElementById('file-upload')?.click()}
+          >
+            <UploadIcon sx={{ fontSize: 48, color: 'grey.400', mb: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              Drop JSON file here or click to upload
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Supports .json files
+            </Typography>
+            <input
+              id="file-upload"
+              type="file"
+              accept=".json"
+              style={{ display: 'none' }}
+              onChange={handleFileUpload}
+            />
+          </Box>
+
+          {/* Text Area */}
+          <TextField
+            label="Or paste JSON content"
+            multiline
+            rows={10}
+            value={importData}
+            onChange={(e) => {
+              setImportData(e.target.value);
+              setParseError(null);
+            }}
+            placeholder={`{
+  "project": "My Project",
+  "environment": "production",
+  "exportDate": "2023-12-01T00:00:00.000Z",
+  "flags": [
+    {
+      "key": "example-flag",
+      "name": "Example Flag",
+      "description": "An example feature flag",
+      "type": "boolean",
+      "enabled": true,
+      "default": false
+    }
+  ]
+}`}
+            fullWidth
+            error={!!parseError}
+            helperText={parseError || 'Paste your JSON export data here'}
+          />
+
+          {parseError && (
+            <Alert severity="error">
+              {parseError}
+            </Alert>
+          )}
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button 
+          variant="contained" 
+          onClick={handleImport}
+          disabled={!isValidJson()}
+        >
+          Import Flags
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export default function FlagsPage() {
+  const { currentProject } = useProject();
+  const { currentEnvironment } = useEnvironment();
   const [flags, setFlags] = useState<Flag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingFlag, setEditingFlag] = useState<Flag | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title: string;
@@ -442,14 +626,13 @@ export default function FlagsPage() {
     message: '',
     action: () => {},
   });
-  const [environment, setEnvironment] = useState('production');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const fetchFlags = async () => {
     try {
       setLoading(true);
       setError(null);
-      const flagsData = await apiClient.getFlags(environment);
+      const flagsData = await apiClient.getFlags(currentEnvironment, currentProject?.id);
       setFlags(flagsData);
     } catch (err) {
       setError('Failed to load flags');
@@ -461,11 +644,21 @@ export default function FlagsPage() {
 
   useEffect(() => {
     fetchFlags();
-  }, [environment]);
+  }, [currentEnvironment, currentProject?.id]);
 
   const handleCreateFlag = async (flagData: CreateFlagRequest) => {
+    if (!currentProject) {
+      setError('Please select a project before creating a flag');
+      return;
+    }
+    
     try {
-      await apiClient.createFlag(flagData, environment);
+      // Add current project ID to flag data
+      const flagDataWithProject = {
+        ...flagData,
+        project_id: currentProject.id,
+      };
+      await apiClient.createFlag(flagDataWithProject, currentEnvironment);
       setCreateDialogOpen(false);
       fetchFlags();
     } catch (err) {
@@ -475,14 +668,19 @@ export default function FlagsPage() {
   };
 
   const handleToggleFlag = async (flag: Flag) => {
+    if (!currentProject) {
+      setError('Please select a project before toggling flags');
+      return;
+    }
+
     const action = flag.enabled ? 'disable' : 'enable';
     setConfirmDialog({
       open: true,
       title: `${action.charAt(0).toUpperCase() + action.slice(1)} Flag`,
-      message: `Are you sure you want to ${action} "${flag.name}"? This will affect all users in the ${environment} environment.`,
+      message: `Are you sure you want to ${action} "${flag.name}"? This will affect all users in the ${currentEnvironment} environment.`,
       action: async () => {
         try {
-          await apiClient.toggleFlag(flag.key, environment);
+          await apiClient.toggleFlag(flag.key, currentEnvironment, currentProject.id);
           fetchFlags();
           setConfirmDialog({ ...confirmDialog, open: false });
         } catch (err) {
@@ -498,10 +696,10 @@ export default function FlagsPage() {
     setConfirmDialog({
       open: true,
       title: 'Delete Flag',
-      message: `Are you sure you want to permanently delete "${flag.name}"? This action cannot be undone and will affect the ${environment} environment.`,
+      message: `Are you sure you want to permanently delete "${flag.name}"? This action cannot be undone and will affect the ${currentEnvironment} environment.`,
       action: async () => {
         try {
-          await apiClient.deleteFlag(flag.key, environment);
+          await apiClient.deleteFlag(flag.key, currentEnvironment);
           fetchFlags();
           setConfirmDialog({ ...confirmDialog, open: false });
         } catch (err) {
@@ -528,7 +726,7 @@ export default function FlagsPage() {
         type: editingFlag.type,
         ...flagData,
       };
-      await apiClient.updateFlag(editingFlag.key, updateData, environment);
+      await apiClient.updateFlag(editingFlag.key, updateData, currentEnvironment);
       setEditDialogOpen(false);
       setEditingFlag(null);
       fetchFlags();
@@ -560,6 +758,111 @@ export default function FlagsPage() {
     // We'll need to modify the CreateFlagDialog to accept initial data
   };
 
+  const handleExportFlags = () => {
+    if (flags.length === 0) {
+      setError('No flags to export');
+      return;
+    }
+
+    // Prepare export data
+    const exportData = {
+      project: currentProject?.name || 'Unknown Project',
+      environment: currentEnvironment,
+      exportDate: new Date().toISOString(),
+      flags: flags.map(flag => ({
+        key: flag.key,
+        name: flag.name,
+        description: flag.description,
+        type: flag.type,
+        enabled: flag.enabled,
+        default: flag.default,
+        variations: flag.variations,
+        targeting: flag.targeting,
+        tags: flag.tags,
+        metadata: flag.metadata,
+      })),
+    };
+
+    // Create and download file
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `flexflag-${currentProject?.name || 'project'}-${currentEnvironment}-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFlags = async (importData: any) => {
+    if (!currentProject) {
+      setError('Please select a project before importing flags');
+      return;
+    }
+
+    try {
+      const { flags: importedFlags } = importData;
+      
+      if (!importedFlags || !Array.isArray(importedFlags)) {
+        throw new Error('Invalid import format: flags array is required');
+      }
+
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      for (const flagData of importedFlags) {
+        try {
+          const createFlagData: CreateFlagRequest = {
+            key: flagData.key,
+            name: flagData.name,
+            description: flagData.description || '',
+            type: flagData.type || 'boolean',
+            enabled: flagData.enabled || false,
+            default: flagData.default,
+            variations: flagData.variations,
+            targeting: flagData.targeting,
+            tags: flagData.tags,
+            metadata: flagData.metadata,
+          };
+
+          // Add current project ID to flag data
+          const flagDataWithProject = {
+            ...createFlagData,
+            project_id: currentProject.id,
+          };
+
+          await apiClient.createFlag(flagDataWithProject, currentEnvironment);
+          successCount++;
+        } catch (err: any) {
+          errorCount++;
+          errors.push(`${flagData.key}: ${err.response?.data?.error || err.message}`);
+        }
+      }
+
+      if (successCount > 0) {
+        setError(null);
+        fetchFlags();
+      }
+
+      if (errorCount > 0) {
+        const errorMessage = `Import completed with ${successCount} successes and ${errorCount} errors:\n${errors.join('\n')}`;
+        setError(errorMessage);
+      } else {
+        setError(null);
+      }
+
+      setImportDialogOpen(false);
+    } catch (err: any) {
+      setError(`Import failed: ${err.message}`);
+      console.error('Import error:', err);
+    }
+  };
+
   const enabledFlags = flags.filter(flag => flag.enabled);
   const disabledFlags = flags.filter(flag => !flag.enabled);
 
@@ -572,26 +875,36 @@ export default function FlagsPage() {
             Feature Flags
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Manage and configure your feature flags
+            {currentProject 
+              ? `Manage flags for ${currentProject.name}`
+              : 'Manage and configure your feature flags'
+            }
           </Typography>
         </Box>
         <Box display="flex" gap={2}>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Environment</InputLabel>
-            <Select
-              value={environment}
-              label="Environment"
-              onChange={(e) => setEnvironment(e.target.value)}
-            >
-              <MenuItem value="production">Production</MenuItem>
-              <MenuItem value="staging">Staging</MenuItem>
-              <MenuItem value="development">Development</MenuItem>
-            </Select>
-          </FormControl>
+          <Button
+            variant="outlined"
+            startIcon={<UploadIcon />}
+            onClick={() => setImportDialogOpen(true)}
+            disabled={!currentProject}
+            sx={{ borderRadius: 2 }}
+          >
+            Import Flags
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<DownloadIcon />}
+            onClick={handleExportFlags}
+            disabled={!currentProject || flags.length === 0}
+            sx={{ borderRadius: 2 }}
+          >
+            Export Flags
+          </Button>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => setCreateDialogOpen(true)}
+            disabled={!currentProject}
             sx={{ borderRadius: 2 }}
           >
             Create Flag
@@ -640,7 +953,17 @@ export default function FlagsPage() {
       </Grid>
 
       {/* Flags Grid */}
-      {loading ? (
+      {!currentProject ? (
+        <Box textAlign="center" py={8}>
+          <ProjectIcon sx={{ fontSize: 64, color: 'grey.300', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            No project selected
+          </Typography>
+          <Typography variant="body2" color="text.secondary" mb={3}>
+            Please select a project to view its feature flags
+          </Typography>
+        </Box>
+      ) : loading ? (
         <Box display="flex" justifyContent="center" py={8}>
           <Typography>Loading flags...</Typography>
         </Box>
@@ -657,6 +980,7 @@ export default function FlagsPage() {
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => setCreateDialogOpen(true)}
+            disabled={!currentProject}
           >
             Create First Flag
           </Button>
@@ -691,6 +1015,12 @@ export default function FlagsPage() {
         }}
         onSave={handleUpdateFlag}
         flag={editingFlag}
+      />
+
+      <ImportFlagDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        onImport={handleImportFlags}
       />
 
       {/* Confirmation Dialog */}
