@@ -46,6 +46,7 @@ import {
   Cloud as EnvironmentIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
+  Storage as EdgeIcon,
 } from '@mui/icons-material';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useTheme } from '@mui/material/styles';
@@ -70,6 +71,7 @@ const projectNavigationItems = [
   },
   { label: 'Evaluations', icon: <AssessmentIcon />, href: '/evaluations' },
   { label: 'Performance', icon: <SpeedIcon />, href: '/performance' },
+  { label: 'Edge Servers', icon: <EdgeIcon />, href: '/edge-servers' },
   { label: 'Environments', icon: <EnvironmentIcon />, href: '/environments' },
   { label: 'API Keys', icon: <KeyIcon />, href: '/api-keys' },
   { label: 'Project Settings', icon: <SettingsIcon />, href: '/settings' },
