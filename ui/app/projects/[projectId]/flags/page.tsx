@@ -39,11 +39,12 @@ import {
   AccountTree as ProjectIcon,
   Download as DownloadIcon,
   Upload as UploadIcon,
+  Science as ExperimentIcon,
 } from '@mui/icons-material';
 import { apiClient } from '@/lib/api';
 import { Flag, CreateFlagRequest } from '@/types';
 import { useEnvironment } from '@/contexts/EnvironmentContext';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 
 interface FlagCardProps {
   flag: Flag;
@@ -51,9 +52,10 @@ interface FlagCardProps {
   onDelete: (flag: Flag) => void;
   onToggle: (flag: Flag) => void;
   onDuplicate: (flag: Flag) => void;
+  onViewExperiment?: (flag: Flag) => void;
 }
 
-function FlagCard({ flag, onEdit, onDelete, onToggle, onDuplicate }: FlagCardProps) {
+function FlagCard({ flag, onEdit, onDelete, onToggle, onDuplicate, onViewExperiment }: FlagCardProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -70,6 +72,7 @@ function FlagCard({ flag, onEdit, onDelete, onToggle, onDuplicate }: FlagCardPro
       case 'string': return 'secondary';
       case 'number': return 'warning';
       case 'json': return 'info';
+      case 'variant': return 'success';
       default: return 'default';
     }
   };
@@ -107,6 +110,11 @@ function FlagCard({ flag, onEdit, onDelete, onToggle, onDuplicate }: FlagCardPro
             <Typography variant="subtitle1" fontWeight="600" noWrap sx={{ fontSize: '0.95rem' }}>
               {flag.name}
             </Typography>
+            {flag.type === 'variant' && (
+              <Tooltip title="A/B Test Experiment">
+                <ExperimentIcon sx={{ fontSize: 16, color: 'success.main' }} />
+              </Tooltip>
+            )}
           </Box>
           <IconButton size="small" onClick={handleClick}>
             <MoreVertIcon />
@@ -148,9 +156,10 @@ function FlagCard({ flag, onEdit, onDelete, onToggle, onDuplicate }: FlagCardPro
           />
           {flag.variations && flag.variations.length > 0 && (
             <Chip 
-              label={`${flag.variations.length} variations`} 
+              label={flag.type === 'variant' ? `${flag.variations.length} variants` : `${flag.variations.length} variations`}
               size="small" 
               variant="outlined"
+              color={flag.type === 'variant' ? 'success' : 'default'}
             />
           )}
         </Box>
@@ -179,6 +188,12 @@ function FlagCard({ flag, onEdit, onDelete, onToggle, onDuplicate }: FlagCardPro
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
+        {flag.type === 'variant' && onViewExperiment && (
+          <MenuItem onClick={() => { onViewExperiment(flag); handleClose(); }}>
+            <ExperimentIcon sx={{ mr: 1 }} fontSize="small" />
+            View Experiment
+          </MenuItem>
+        )}
         <MenuItem onClick={() => { onEdit(flag); handleClose(); }}>
           <EditIcon sx={{ mr: 1 }} fontSize="small" />
           Edit
@@ -440,6 +455,7 @@ function CreateFlagDialog({ open, onClose, onSave }: {
 export default function ProjectFlagsPage() {
   const { currentEnvironment } = useEnvironment();
   const params = useParams();
+  const router = useRouter();
   const projectId = params.projectId as string;
   const [project, setProject] = useState<any>(null);
   const [flags, setFlags] = useState<Flag[]>([]);
@@ -605,6 +621,11 @@ export default function ProjectFlagsPage() {
     };
     
     setCreateDialogOpen(true);
+  };
+
+  const handleViewExperiment = (flag: Flag) => {
+    // Navigate to the experiments page
+    router.push(`/projects/${projectId}/experiments`);
   };
 
   const enabledFlags = flags.filter(flag => flag.enabled);
@@ -832,6 +853,7 @@ export default function ProjectFlagsPage() {
                 onDelete={handleDeleteFlag}
                 onToggle={handleToggleFlag}
                 onDuplicate={handleDuplicateFlag}
+                onViewExperiment={handleViewExperiment}
               />
             </Grid>
           ))}
