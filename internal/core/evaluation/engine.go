@@ -2,8 +2,6 @@ package evaluation
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,6 +9,7 @@ import (
 	"time"
 
 	"github.com/flexflag/flexflag/pkg/types"
+	"github.com/spaolacci/murmur3"
 )
 
 type Engine struct {
@@ -137,19 +136,10 @@ func (e *Engine) evaluateRollout(req *types.EvaluationRequest, flag *types.Flag)
 	}
 
 	hashInput := fmt.Sprintf("%s:%s:%d", flag.Key, bucketKey, flag.Targeting.Rollout.Seed)
-	hash := md5.Sum([]byte(hashInput))
-	hashStr := hex.EncodeToString(hash[:])
+	hash := murmur3.Sum32([]byte(hashInput))
 	
-	bucket := 0
-	for i := 0; i < 8; i++ {
-		bucket = bucket*16 + int(hashStr[i])
-		if hashStr[i] >= '0' && hashStr[i] <= '9' {
-			bucket = bucket - int('0')
-		} else {
-			bucket = bucket - int('a') + 10
-		}
-	}
-	bucket = bucket % 100000
+	// Convert hash to bucket in range [0, 100000)
+	bucket := int(hash % 100000)
 
 	cumulative := 0
 	for _, vr := range flag.Targeting.Rollout.Variations {
