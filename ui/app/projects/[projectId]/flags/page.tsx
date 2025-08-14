@@ -107,7 +107,18 @@ function FlagCard({ flag, onEdit, onDelete, onToggle, onDuplicate, onViewExperim
                 boxShadow: flag.enabled ? '0 0 0 2px rgba(76, 175, 80, 0.2)' : 'none',
               }}
             />
-            <Typography variant="subtitle1" fontWeight="600" noWrap sx={{ fontSize: '0.95rem' }}>
+            <Typography 
+              variant="subtitle1" 
+              fontWeight="600" 
+              sx={{ 
+                fontSize: '0.95rem',
+                maxWidth: '180px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}
+              title={flag.name}
+            >
               {flag.name}
             </Typography>
             {flag.type === 'variant' && (
@@ -124,7 +135,18 @@ function FlagCard({ flag, onEdit, onDelete, onToggle, onDuplicate, onViewExperim
         <Typography 
           variant="body2" 
           color="text.secondary" 
-          sx={{ fontFamily: 'monospace', bgcolor: 'grey.50', p: 0.75, borderRadius: 1, mb: 1.5, fontSize: '0.75rem' }}
+          sx={{ 
+            fontFamily: 'monospace', 
+            bgcolor: 'grey.50', 
+            p: 0.75, 
+            borderRadius: 1, 
+            mb: 1.5, 
+            fontSize: '0.75rem',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}
+          title={flag.key}
         >
           {flag.key}
         </Typography>
