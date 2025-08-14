@@ -1,3 +1,29 @@
+// Package main FlexFlag API Server
+// @title           FlexFlag API
+// @version         1.0
+// @description     A high-performance feature flag management system with project-based multi-tenancy
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name   FlexFlag Support
+// @contact.url    http://www.flexflag.com/support
+// @contact.email  support@flexflag.com
+
+// @license.name  MIT
+// @license.url   http://opensource.org/licenses/MIT
+
+// @host      localhost:8080
+// @BasePath  /api/v1
+
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name Authorization
+// @description Bearer token authentication
+
+// @securityDefinitions.apikey ApiKeyHeader
+// @in header
+// @name X-API-Key
+// @description API Key authentication
+
 package main
 
 import (
@@ -16,6 +42,11 @@ import (
 	"github.com/flexflag/flexflag/internal/services"
 	"github.com/flexflag/flexflag/internal/storage/postgres"
 	"github.com/gin-gonic/gin"
+	
+	// Swagger imports
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	_ "github.com/flexflag/flexflag/api" // Generated swagger docs
 )
 
 func main() {
@@ -53,6 +84,7 @@ func main() {
 	segmentRepo := postgres.NewSegmentRepository(db)
 	rolloutRepo := postgres.NewRolloutRepository(db)
 	auditRepo := postgres.NewAuditRepository(db)
+	apiKeyRepo := postgres.NewApiKeyRepository(db)
 	
 	// Initialize services
 	auditService := services.NewAuditService(auditRepo)
@@ -62,7 +94,7 @@ func main() {
 	
 	// Initialize handlers
 	ultraFastHandler := handlers.NewUltraFastHandler(flagRepo)
-	flagHandler := handlers.NewFlagHandler(flagRepo, auditService, ultraFastHandler)
+	flagHandler := handlers.NewFlagHandler(flagRepo, auditService, ultraFastHandler, projectRepo)
 	authHandler := handlers.NewAuthHandler(userRepo, jwtManager)
 	projectHandler := handlers.NewProjectHandler(projectRepo, flagRepo, segmentRepo, rolloutRepo)
 	segmentHandler := handlers.NewSegmentHandler(segmentRepo)
@@ -70,6 +102,7 @@ func main() {
 	auditHandler := handlers.NewAuditHandler(auditRepo)
 	evaluationHandler := handlers.NewEvaluationHandler(flagRepo, rolloutRepo)
 	optimizedEvalHandler := handlers.NewOptimizedEvaluationHandler(flagRepo)
+	apiKeyHandler := handlers.NewApiKeyHandler(apiKeyRepo)
 
 	r := gin.New()
 	r.Use(gin.Logger())
@@ -82,6 +115,9 @@ func main() {
 			"service": "flexflag-server",
 		})
 	})
+
+	// Swagger documentation
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api/v1")
 	{
@@ -116,6 +152,24 @@ func main() {
 			// Environment endpoints
 			projects.POST("/:slug/environments", auth.RequireEditorOrAdmin(), projectHandler.CreateEnvironment)
 			projects.GET("/:slug/environments", projectHandler.GetEnvironments)
+		}
+		
+		// API Key endpoints (separate group to avoid route conflicts)
+		apiKeys := api.Group("/project-api-keys")
+		apiKeys.Use(auth.AuthMiddleware(jwtManager))
+		{
+			apiKeys.POST("/:projectId", auth.RequireEditorOrAdmin(), apiKeyHandler.CreateApiKey)
+			apiKeys.GET("/:projectId", apiKeyHandler.GetApiKeys)
+			apiKeys.PUT("/:projectId/:keyId", auth.RequireEditorOrAdmin(), apiKeyHandler.UpdateApiKey)
+			apiKeys.DELETE("/:projectId/:keyId", auth.RequireEditorOrAdmin(), apiKeyHandler.DeleteApiKey)
+		}
+		
+		// Environment management (require authentication) - separate group for individual environment operations
+		environments := api.Group("/environments")
+		environments.Use(auth.AuthMiddleware(jwtManager))
+		{
+			environments.PUT("/:id", auth.RequireEditorOrAdmin(), projectHandler.UpdateEnvironment)
+			environments.DELETE("/:id", auth.RequireEditorOrAdmin(), projectHandler.DeleteEnvironment)
 		}
 		
 		// Segment management (require authentication)
@@ -182,13 +236,13 @@ func main() {
 			audit.GET("/logs/resource", auditHandler.ListAuditLogsByResource)
 		}
 		
-		// Flag evaluation (public or optional auth for analytics)
-		api.POST("/evaluate", auth.OptionalAuth(jwtManager), evaluationHandler.Evaluate)
-		api.POST("/evaluate/batch", auth.OptionalAuth(jwtManager), evaluationHandler.BatchEvaluate)
+		// Flag evaluation (supports both JWT and API key authentication)
+		api.POST("/evaluate", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), evaluationHandler.Evaluate)
+		api.POST("/evaluate/batch", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), evaluationHandler.BatchEvaluate)
 		
 		// Optimized flag evaluation
-		api.POST("/evaluate/fast", auth.OptionalAuth(jwtManager), optimizedEvalHandler.FastEvaluate)
-		api.POST("/evaluate/fast/batch", auth.OptionalAuth(jwtManager), optimizedEvalHandler.FastBatchEvaluate)
+		api.POST("/evaluate/fast", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), optimizedEvalHandler.FastEvaluate)
+		api.POST("/evaluate/fast/batch", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), optimizedEvalHandler.FastBatchEvaluate)
 		
 		// Cache management (require authentication)
 		cache := api.Group("/evaluate/cache")
@@ -199,7 +253,7 @@ func main() {
 		}
 		
 		// Ultra-fast flag evaluation
-		api.POST("/evaluate/ultra", auth.OptionalAuth(jwtManager), ultraFastHandler.UltraFastEvaluate)
+		api.POST("/evaluate/ultra", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), ultraFastHandler.UltraFastEvaluate)
 		api.GET("/evaluate/ultra/stats", auth.AuthMiddleware(jwtManager), ultraFastHandler.GetStats)
 	}
 
