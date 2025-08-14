@@ -1,7 +1,5 @@
 'use client';
 
-import { ThemeProvider } from '@mui/material/styles';
-import { CssBaseline } from '@mui/material';
 import { 
   AppBar, 
   Toolbar, 
@@ -44,8 +42,13 @@ import {
   ArrowBack as ArrowBackIcon,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
+  Key as KeyIcon,
+  Cloud as EnvironmentIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
 } from '@mui/icons-material';
-import { theme } from '@/lib/theme';
+import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '@mui/material/styles';
 import { useProject } from '@/contexts/ProjectContext';
 import { useEnvironment } from '@/contexts/EnvironmentContext';
 import { usePathname, useParams } from 'next/navigation';
@@ -67,24 +70,48 @@ const projectNavigationItems = [
   },
   { label: 'Evaluations', icon: <AssessmentIcon />, href: '/evaluations' },
   { label: 'Performance', icon: <SpeedIcon />, href: '/performance' },
+  { label: 'Environments', icon: <EnvironmentIcon />, href: '/environments' },
+  { label: 'API Keys', icon: <KeyIcon />, href: '/api-keys' },
   { label: 'Project Settings', icon: <SettingsIcon />, href: '/settings' },
 ];
 
 function EnvironmentSelector() {
-  const { currentEnvironment, setCurrentEnvironment, availableEnvironments } = useEnvironment();
+  const { currentEnvironment, setCurrentEnvironment, availableEnvironments, environments, loading } = useEnvironment();
 
   const handleEnvironmentChange = (environment: string) => {
     setCurrentEnvironment(environment);
   };
 
-  const getEnvironmentDisplayName = (env: string) => {
-    switch (env) {
-      case 'production': return 'Production';
-      case 'staging': return 'Staging';
-      case 'development': return 'Dev';
-      default: return env;
-    }
+  const getEnvironmentDisplayName = (envKey: string) => {
+    const env = environments.find(e => e.key === envKey);
+    if (env) return env.name;
+    
+    // Fallback to key with title case
+    return envKey.charAt(0).toUpperCase() + envKey.slice(1);
   };
+
+  if (loading) {
+    return (
+      <Box sx={{ px: 3, py: 2, borderBottom: 1, borderColor: 'divider', bgcolor: 'grey.50' }}>
+        <Typography 
+          variant="overline" 
+          color="text.secondary" 
+          sx={{ 
+            mb: 1.5, 
+            display: 'block',
+            fontWeight: 600,
+            fontSize: '0.75rem',
+            letterSpacing: '0.5px'
+          }}
+        >
+          Environment
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Loading environments...
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ px: 3, py: 2, borderBottom: 1, borderColor: 'divider', bgcolor: 'grey.50' }}>
@@ -419,8 +446,17 @@ export default function ProjectLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const { mode, toggleMode } = useCustomTheme();
+  const theme = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Initialize sidebar collapsed state from localStorage
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('flexflag_sidebar_collapsed');
+      return saved === 'true';
+    }
+    return false;
+  });
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   const [user, setUser] = useState<any>(null);
   const [project, setProject] = useState<any>(null);
@@ -461,15 +497,18 @@ export default function ProjectLayout({
   };
 
   const handleSidebarToggle = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
+    const newCollapsedState = !sidebarCollapsed;
+    setSidebarCollapsed(newCollapsedState);
+    // Persist to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('flexflag_sidebar_collapsed', newCollapsedState.toString());
+    }
   };
 
   const currentDrawerWidth = sidebarCollapsed ? collapsedDrawerWidth : drawerWidth;
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
         {/* App Bar */}
         <AppBar
           position="fixed"
@@ -574,6 +613,28 @@ export default function ProjectLayout({
             
             {/* Actions */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 3 }}>
+              {/* Dark Mode Toggle */}
+              <IconButton
+                onClick={toggleMode}
+                sx={{ 
+                  color: 'text.secondary',
+                  bgcolor: 'grey.50',
+                  border: '1px solid',
+                  borderColor: 'grey.200',
+                  width: 36,
+                  height: 36,
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    color: 'primary.main',
+                    bgcolor: 'primary.50',
+                    borderColor: 'primary.200'
+                  }
+                }}
+                size="small"
+              >
+                {mode === 'dark' ? <LightModeIcon sx={{ fontSize: '1.1rem' }} /> : <DarkModeIcon sx={{ fontSize: '1.1rem' }} />}
+              </IconButton>
+              
               {/* Back Button */}
               <IconButton
                 href="/projects"
@@ -735,6 +796,5 @@ export default function ProjectLayout({
           </Container>
         </Box>
       </Box>
-    </ThemeProvider>
   );
 }
