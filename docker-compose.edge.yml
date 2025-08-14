@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # FlexFlag Edge Server
+  flexflag-edge:
+    build:
+      context: .
+      dockerfile: cmd/edge-server/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - FLEXFLAG_EDGE_PORT=8081
+      - FLEXFLAG_EDGE_ENVIRONMENT=production
+      - FLEXFLAG_HUB_URL=http://flexflag-api:8080
+      - FLEXFLAG_EDGE_API_KEY=${FLEXFLAG_EDGE_API_KEY:-your-api-key-here}
+      - FLEXFLAG_EDGE_MAX_FLAGS=10000
+      - FLEXFLAG_EDGE_MAX_API_KEYS=1000
+      - FLEXFLAG_EDGE_CACHE_TTL=1h
+      - FLEXFLAG_EDGE_CLEANUP_INTERVAL=5m
+      - FLEXFLAG_EDGE_ENABLE_METRICS=true
+      - FLEXFLAG_EDGE_RECONNECT_INTERVAL=30s
+      - FLEXFLAG_EDGE_HEARTBEAT_INTERVAL=30s
+      - FLEXFLAG_EDGE_MAX_RETRIES=5
+      - FLEXFLAG_EDGE_BUFFER_SIZE=1000
+    depends_on:
+      - flexflag-api
+    networks:
+      - flexflag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+
+  # Main FlexFlag API (referenced for edge server)
+  flexflag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - FLEXFLAG_DATABASE_HOST=postgres
+      - FLEXFLAG_DATABASE_PORT=5432
+      - FLEXFLAG_DATABASE_USER=flexflag
+      - FLEXFLAG_DATABASE_PASSWORD=flexflag_password
+      - FLEXFLAG_DATABASE_NAME=flexflag
+      - FLEXFLAG_DATABASE_SSL_MODE=disable
+      - FLEXFLAG_SERVER_PORT=8080
+      - FLEXFLAG_JWT_SECRET=your-jwt-secret-change-this
+      - FLEXFLAG_REDIS_HOST=redis
+      - FLEXFLAG_REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - flexflag-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=flexflag
+      - POSTGRES_PASSWORD=flexflag_password
+      - POSTGRES_DB=flexflag
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - flexflag-network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - flexflag-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Load Balancer for Edge Servers
+  edge-lb:
+    image: nginx:alpine
+    ports:
+      - "8082:80"
+    volumes:
+      - ./deployments/nginx-edge.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - flexflag-edge
+    networks:
+      - flexflag-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  flexflag-network:
+    driver: bridge

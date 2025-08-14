@@ -106,3 +106,39 @@ swagger: ## Generate Swagger documentation
 proto: ## Generate protobuf files
 	@echo "Generating protobuf files..."
 	@protoc --go_out=. --go-grpc_out=. api/proto/*.proto
+
+# Edge Server Commands
+build-edge: ## Build edge server binary
+	@echo "Building edge server..."
+	@go build ${LDFLAGS} -o bin/edge-server cmd/edge-server/main.go
+
+run-edge: ## Run edge server locally
+	@go run cmd/edge-server/main.go
+
+docker-build-edge: ## Build edge server Docker image
+	@echo "Building edge server Docker image..."
+	@docker build -f cmd/edge-server/Dockerfile -t flexflag-edge:${VERSION} -t flexflag-edge:latest .
+
+edge-deploy: ## Deploy edge infrastructure
+	@echo "Deploying edge infrastructure..."
+	@./deployments/deploy-edge.sh deploy
+
+edge-build: ## Build edge server only
+	@echo "Building edge server..."
+	@./deployments/deploy-edge.sh build
+
+edge-scale: ## Scale edge servers (set EDGE_REPLICAS)
+	@echo "Scaling edge servers..."
+	@./deployments/deploy-edge.sh scale
+
+edge-status: ## Show edge deployment status
+	@./deployments/deploy-edge.sh status
+
+edge-test: ## Run edge server performance tests
+	@./deployments/deploy-edge.sh test
+
+edge-stop: ## Stop edge infrastructure
+	@./deployments/deploy-edge.sh stop
+
+edge-logs: ## Show edge server logs
+	@./deployments/deploy-edge.sh logs
