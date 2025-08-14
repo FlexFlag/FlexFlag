@@ -81,13 +81,15 @@ type EvaluationRequest struct {
 }
 
 type EvaluationResponse struct {
-	FlagKey     string          `json:"flag_key"`
-	Value       json.RawMessage `json:"value"`
-	Variation   string          `json:"variation"`
-	Reason      string          `json:"reason"`
-	RuleID      string          `json:"rule_id,omitempty"`
-	Default     bool            `json:"default"`
-	Timestamp   time.Time       `json:"timestamp"`
+	FlagKey        string          `json:"flag_key"`
+	Value          json.RawMessage `json:"value"`
+	Variation      string          `json:"variation"`
+	Reason         string          `json:"reason"`
+	RuleID         string          `json:"rule_id,omitempty"`
+	Default        bool            `json:"default"`
+	Timestamp      time.Time       `json:"timestamp"`
+	EvaluationTime float64         `json:"evaluation_time,omitempty"` // in milliseconds
+	Source         string          `json:"source,omitempty"`          // e.g., "edge-cache", "central-hub"
 }
 
 type Segment struct {
