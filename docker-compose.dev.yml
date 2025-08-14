@@ -1,0 +1,139 @@
+# Development-focused Docker Compose
+# Use this for development with hot-reload and debugging
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: flexflag-postgres-dev
+    environment:
+      POSTGRES_USER: flexflag
+      POSTGRES_PASSWORD: flexflag
+      POSTGRES_DB: flexflag
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flexflag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flexflag-dev-network
+
+  # Cache
+  redis:
+    image: redis:7-alpine
+    container_name: flexflag-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flexflag-dev-network
+
+  # Development API (with hot reload)
+  api-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: flexflag-api-dev
+    ports:
+      - "8080:8080"
+      - "2345:2345"  # Delve debugger port
+    environment:
+      FLEXFLAG_DATABASE_HOST: postgres
+      FLEXFLAG_DATABASE_PORT: 5432
+      FLEXFLAG_DATABASE_USERNAME: flexflag
+      FLEXFLAG_DATABASE_PASSWORD: flexflag
+      FLEXFLAG_DATABASE_DATABASE: flexflag
+      FLEXFLAG_DATABASE_SSL_MODE: disable
+      FLEXFLAG_REDIS_HOST: redis
+      FLEXFLAG_REDIS_PORT: 6379
+      FLEXFLAG_SERVER_HOST: 0.0.0.0
+      FLEXFLAG_SERVER_PORT: 8080
+      FLEXFLAG_SERVER_DEBUG: true
+      FLEXFLAG_CORS_ALLOWED_ORIGINS: "*"
+      FLEXFLAG_JWT_SECRET: "dev-secret-key"
+      FLEXFLAG_JWT_EXPIRY: "24h"
+      GO_ENV: development
+    volumes:
+      - .:/app
+      - go_mod_cache:/go/pkg/mod
+    working_dir: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - flexflag-dev-network
+    command: ["air", "-c", ".air.toml"]
+
+  # Development UI (with hot reload)
+  ui-dev:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile.dev
+    container_name: flexflag-ui-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./ui:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api-dev
+    networks:
+      - flexflag-dev-network
+
+  # pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: flexflag-pgadmin-dev
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@flexflag.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - flexflag-dev-network
+
+  # Redis Commander for cache management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: flexflag-redis-commander-dev
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - flexflag-dev-network
+
+networks:
+  flexflag-dev-network:
+    driver: bridge
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  go_mod_cache:
+    driver: local

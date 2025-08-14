@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # Database
   postgres:
     image: postgres:15-alpine
     container_name: flexflag-postgres
@@ -12,12 +13,17 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U flexflag"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - flexflag-network
+    restart: unless-stopped
 
+  # Cache
   redis:
     image: redis:7-alpine
     container_name: flexflag-redis
@@ -30,31 +36,132 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - flexflag-network
+    restart: unless-stopped
 
-  server:
+  # Backend API Server
+  api:
     build:
       context: .
-      dockerfile: deployments/docker/Dockerfile
-    container_name: flexflag-server
+      dockerfile: Dockerfile.api
+    container_name: flexflag-api
     ports:
       - "8080:8080"
     environment:
+      # Database
       FLEXFLAG_DATABASE_HOST: postgres
       FLEXFLAG_DATABASE_PORT: 5432
       FLEXFLAG_DATABASE_USERNAME: flexflag
       FLEXFLAG_DATABASE_PASSWORD: flexflag
       FLEXFLAG_DATABASE_DATABASE: flexflag
+      FLEXFLAG_DATABASE_SSL_MODE: disable
+      
+      # Redis
       FLEXFLAG_REDIS_HOST: redis
       FLEXFLAG_REDIS_PORT: 6379
+      FLEXFLAG_REDIS_PASSWORD: ""
+      
+      # Server
+      FLEXFLAG_SERVER_HOST: 0.0.0.0
+      FLEXFLAG_SERVER_PORT: 8080
+      FLEXFLAG_SERVER_DEBUG: true
+      
+      # CORS
+      FLEXFLAG_CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8080,http://flexflag-ui:3000"
+      
+      # JWT
+      FLEXFLAG_JWT_SECRET: "your-super-secret-jwt-key-change-in-production"
+      FLEXFLAG_JWT_EXPIRY: "24h"
+      
+      # Performance
+      FLEXFLAG_CACHE_ENABLED: true
+      FLEXFLAG_CACHE_TTL: 300
+      FLEXFLAG_METRICS_ENABLED: true
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
-      - ./config.yaml:/app/config.yaml
+      - ./config:/app/config
+      - ./logs:/app/logs
+    networks:
+      - flexflag-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend UI
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8080
+    container_name: flexflag-ui
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NODE_ENV=development
+    depends_on:
+      - api
+    networks:
+      - flexflag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Database Migrator (runs once)
+  migrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrator
+    container_name: flexflag-migrator
+    environment:
+      FLEXFLAG_DATABASE_HOST: postgres
+      FLEXFLAG_DATABASE_PORT: 5432
+      FLEXFLAG_DATABASE_USERNAME: flexflag
+      FLEXFLAG_DATABASE_PASSWORD: flexflag
+      FLEXFLAG_DATABASE_DATABASE: flexflag
+      FLEXFLAG_DATABASE_SSL_MODE: disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - flexflag-network
+    restart: "no"
+
+  # Load Balancer / Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: flexflag-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+      - ui
+    networks:
+      - flexflag-network
+    restart: unless-stopped
+
+networks:
+  flexflag-network:
+    driver: bridge
 
 volumes:
   postgres_data:
+    driver: local
   redis_data:
+    driver: local

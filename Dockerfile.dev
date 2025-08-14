@@ -1,0 +1,65 @@
+# Development Dockerfile with hot reload support
+FROM golang:1.21-alpine
+
+# Install development tools
+RUN apk add --no-cache git ca-certificates curl
+
+# Install Air for hot reload
+RUN go install github.com/cosmtrek/air@latest
+
+# Install Delve for debugging
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Expose ports
+EXPOSE 8080 2345
+
+# Create Air config
+RUN echo 'root = "."' > .air.toml && \
+    echo 'testdata_dir = "testdata"' >> .air.toml && \
+    echo 'tmp_dir = "tmp"' >> .air.toml && \
+    echo '' >> .air.toml && \
+    echo '[build]' >> .air.toml && \
+    echo '  args_bin = []' >> .air.toml && \
+    echo '  bin = "./tmp/main"' >> .air.toml && \
+    echo '  cmd = "go build -o ./tmp/main cmd/server/main.go"' >> .air.toml && \
+    echo '  delay = 1000' >> .air.toml && \
+    echo '  exclude_dir = ["assets", "tmp", "vendor", "testdata", "ui"]' >> .air.toml && \
+    echo '  exclude_file = []' >> .air.toml && \
+    echo '  exclude_regex = ["_test.go"]' >> .air.toml && \
+    echo '  exclude_unchanged = false' >> .air.toml && \
+    echo '  follow_symlink = false' >> .air.toml && \
+    echo '  full_bin = ""' >> .air.toml && \
+    echo '  include_dir = []' >> .air.toml && \
+    echo '  include_ext = ["go", "tpl", "tmpl", "html"]' >> .air.toml && \
+    echo '  kill_delay = "0s"' >> .air.toml && \
+    echo '  log = "build-errors.log"' >> .air.toml && \
+    echo '  send_interrupt = false' >> .air.toml && \
+    echo '  stop_on_root = false' >> .air.toml && \
+    echo '' >> .air.toml && \
+    echo '[color]' >> .air.toml && \
+    echo '  app = ""' >> .air.toml && \
+    echo '  build = "yellow"' >> .air.toml && \
+    echo '  main = "magenta"' >> .air.toml && \
+    echo '  runner = "green"' >> .air.toml && \
+    echo '  watcher = "cyan"' >> .air.toml && \
+    echo '' >> .air.toml && \
+    echo '[log]' >> .air.toml && \
+    echo '  time = false' >> .air.toml && \
+    echo '' >> .air.toml && \
+    echo '[misc]' >> .air.toml && \
+    echo '  clean_on_exit = false' >> .air.toml
+
+# Default command
+CMD ["air", "-c", ".air.toml"]
