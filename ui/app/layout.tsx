@@ -1,7 +1,6 @@
 'use client';
 
-import { ThemeProvider } from '@mui/material/styles';
-import { CssBaseline } from '@mui/material';
+import { CustomThemeProvider } from '@/contexts/ThemeContext';
 import { 
   AppBar, 
   Toolbar, 
@@ -41,11 +40,13 @@ import {
   Logout as LogoutIcon,
   Person as PersonIcon,
   AdminPanelSettings as AdminIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
 } from '@mui/icons-material';
-import { theme } from '@/lib/theme';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ProjectProvider } from '@/contexts/ProjectContext';
 import { EnvironmentProvider, useEnvironment } from '@/contexts/EnvironmentContext';
+import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import AuthGuard from '@/components/AuthGuard';
 import { usePathname } from 'next/navigation';
 
@@ -202,6 +203,7 @@ function NavigationContent() {
 }
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
+  const { mode, toggleMode } = useCustomTheme();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
@@ -261,6 +263,19 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
             FlexFlag Dashboard
           </Typography>
           
+          {/* Dark Mode Toggle */}
+          <IconButton
+            onClick={toggleMode}
+            sx={{ 
+              color: 'text.secondary',
+              mr: 2,
+              '&:hover': {
+                color: 'primary.main',
+              }
+            }}
+          >
+            {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+          </IconButton>
           
           {/* User Menu */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -394,8 +409,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
+        <CustomThemeProvider>
           <AuthProvider>
             <ProjectProvider>
               <EnvironmentProvider>
@@ -405,7 +419,7 @@ export default function RootLayout({
               </EnvironmentProvider>
             </ProjectProvider>
           </AuthProvider>
-        </ThemeProvider>
+        </CustomThemeProvider>
       </body>
     </html>
   );
