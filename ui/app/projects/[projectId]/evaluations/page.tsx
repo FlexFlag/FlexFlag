@@ -49,6 +49,7 @@ interface EvaluationResponse {
   variation_id?: string;
   reason: string;
   match: boolean;
+  evaluation_time_ms?: number;
 }
 
 export default function ProjectEvaluationsPage() {
@@ -379,6 +380,24 @@ export default function ProjectEvaluationsPage() {
                         color={result.match ? 'success' : 'default'}
                       />
                     </Grid>
+
+                    {result.evaluation_time_ms !== undefined && (
+                      <Grid item xs={12}>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          Evaluation Time
+                        </Typography>
+                        <Typography 
+                          variant="body1" 
+                          sx={{ 
+                            fontFamily: 'monospace', 
+                            color: result.evaluation_time_ms < 1 ? 'success.main' : 
+                                   result.evaluation_time_ms < 5 ? 'warning.main' : 'error.main'
+                          }}
+                        >
+                          {result.evaluation_time_ms.toFixed(3)}ms
+                        </Typography>
+                      </Grid>
+                    )}
                   </Grid>
                 </Paper>
               )}

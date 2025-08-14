@@ -75,6 +75,8 @@ export default function ProjectSegmentsPage() {
   const [openTestDialog, setOpenTestDialog] = useState(false);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const [testResult, setTestResult] = useState<any>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     key: '',
     name: '',
@@ -86,8 +88,9 @@ export default function ProjectSegmentsPage() {
     user_id: '',
     email: '',
     country: '',
-    plan: '',
-    custom_attributes: {},
+    subscription_plan: '',
+    account_age_days: '',
+    beta_opt_in: '',
   });
 
   // Fetch project data
@@ -132,10 +135,11 @@ export default function ProjectSegmentsPage() {
 
   const handleCreateSegment = async () => {
     if (!projectId) {
-      console.error('Project ID is required');
+      alert('Project ID is required');
       return;
     }
     
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
       const segmentData = {
@@ -158,9 +162,16 @@ export default function ProjectSegmentsPage() {
         setOpenDialog(false);
         fetchSegments();
         resetForm();
+        setEditMode(false);
+      } else {
+        const errorData = await response.json();
+        alert(`Error creating segment: ${errorData.error}`);
       }
     } catch (error) {
       console.error('Error creating segment:', error);
+      alert('Failed to create segment. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -180,7 +191,13 @@ export default function ProjectSegmentsPage() {
           segment_key: selectedSegment.key,
           user_key: testData.user_id || 'test_user',
           user_id: testData.user_id,
-          attributes: testData,
+          attributes: {
+            email: testData.email,
+            country: testData.country,
+            subscription_plan: testData.subscription_plan,
+            account_age_days: testData.account_age_days,
+            beta_opt_in: testData.beta_opt_in,
+          },
           environment: currentEnvironment,
         }),
       });
@@ -188,6 +205,9 @@ export default function ProjectSegmentsPage() {
       if (response.ok) {
         const result = await response.json();
         setTestResult(result);
+      } else {
+        const errorData = await response.json();
+        alert(`Error testing segment: ${errorData.error}`);
       }
     } catch (error) {
       console.error('Error testing segment:', error);
@@ -210,6 +230,10 @@ export default function ProjectSegmentsPage() {
       
       if (response.ok) {
         fetchSegments();
+        alert('Segment deleted successfully');
+      } else {
+        const errorData = await response.json();
+        alert(`Error deleting segment: ${errorData.error}`);
       }
     } catch (error) {
       console.error('Error deleting segment:', error);
@@ -224,6 +248,8 @@ export default function ProjectSegmentsPage() {
       environment: currentEnvironment,
       rules: [{ attribute: '', operator: 'equals', values: [''] }],
     });
+    setEditMode(false);
+    setSelectedSegment(null);
   };
 
   const addRule = () => {
@@ -242,6 +268,57 @@ export default function ProjectSegmentsPage() {
   const removeRule = (index: number) => {
     const newRules = formData.rules.filter((_, i) => i !== index);
     setFormData({ ...formData, rules: newRules });
+  };
+
+  const handleEditSegment = (segment: Segment) => {
+    setFormData({
+      key: segment.key,
+      name: segment.name,
+      description: segment.description,
+      environment: segment.environment || currentEnvironment,
+      rules: segment.rules.length > 0 ? segment.rules : [{ attribute: '', operator: 'equals', values: [''] }],
+    });
+    setSelectedSegment(segment);
+    setEditMode(true);
+    setOpenDialog(true);
+  };
+
+  const handleUpdateSegment = async () => {
+    if (!selectedSegment) return;
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const segmentData = {
+        name: formData.name,
+        description: formData.description,
+        rules: formData.rules,
+      };
+
+      const response = await fetch(`http://localhost:8080/api/v1/segments/${selectedSegment.key}?project_id=${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(segmentData),
+      });
+
+      if (response.ok) {
+        setOpenDialog(false);
+        fetchSegments();
+        resetForm();
+        alert('Segment updated successfully');
+      } else {
+        const errorData = await response.json();
+        alert(`Error updating segment: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error('Error updating segment:', error);
+      alert('Failed to update segment. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!project) {
@@ -306,6 +383,15 @@ export default function ProjectSegmentsPage() {
                           size="small" 
                           onClick={() => {
                             setSelectedSegment(segment);
+                            setTestResult(null);
+                            setTestData({
+                              user_id: '',
+                              email: '',
+                              country: '',
+                              subscription_plan: '',
+                              account_age_days: '',
+                              beta_opt_in: '',
+                            });
                             setOpenTestDialog(true);
                           }}
                         >
@@ -313,7 +399,10 @@ export default function ProjectSegmentsPage() {
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Edit">
-                        <IconButton size="small">
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleEditSegment(segment)}
+                        >
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -369,8 +458,8 @@ export default function ProjectSegmentsPage() {
       )}
 
       {/* Create/Edit Segment Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Create New Segment</DialogTitle>
+      <Dialog open={openDialog} onClose={() => { setOpenDialog(false); resetForm(); }} maxWidth="md" fullWidth>
+        <DialogTitle>{editMode ? 'Edit Segment' : 'Create New Segment'}</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} md={6}>
@@ -380,6 +469,7 @@ export default function ProjectSegmentsPage() {
                 value={formData.key}
                 onChange={(e) => setFormData({ ...formData, key: e.target.value })}
                 helperText="Unique identifier for the segment"
+                disabled={editMode}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -457,9 +547,9 @@ export default function ProjectSegmentsPage() {
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button onClick={handleCreateSegment} variant="contained">
-            Create Segment
+          <Button onClick={() => { setOpenDialog(false); resetForm(); }}>Cancel</Button>
+          <Button onClick={editMode ? handleUpdateSegment : handleCreateSegment} variant="contained" disabled={loading}>
+            {loading ? 'Saving...' : editMode ? 'Update Segment' : 'Create Segment'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -496,26 +586,49 @@ export default function ProjectSegmentsPage() {
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                label="Plan"
-                value={testData.plan}
-                onChange={(e) => setTestData({ ...testData, plan: e.target.value })}
+                label="Subscription Plan"
+                value={testData.subscription_plan}
+                onChange={(e) => setTestData({ ...testData, subscription_plan: e.target.value })}
+                placeholder="premium, basic, etc."
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Account Age (Days)"
+                value={testData.account_age_days}
+                onChange={(e) => setTestData({ ...testData, account_age_days: e.target.value })}
+                type="number"
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Beta Opt-in"
+                value={testData.beta_opt_in}
+                onChange={(e) => setTestData({ ...testData, beta_opt_in: e.target.value })}
+                placeholder="true, false"
               />
             </Grid>
           </Grid>
 
           {testResult && (
             <Alert 
-              severity={testResult.matched ? 'success' : 'info'} 
+              severity={testResult.matched ? 'success' : 'warning'} 
               sx={{ mt: 3 }}
             >
-              <Typography variant="subtitle2">
-                Match Result: {testResult.matched ? 'User matches segment' : 'User does not match segment'}
+              <Typography variant="subtitle2" fontWeight="bold">
+                {testResult.matched ? '✅ User matches segment' : '❌ User does not match segment'}
               </Typography>
-              {testResult.matched_rules && (
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  Matched Rules: {testResult.matched_rules.length}
-                </Typography>
-              )}
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Reason: {testResult.reason}
+              </Typography>
+              <Typography variant="body2">
+                User: {testResult.user_key}
+              </Typography>
+              <Typography variant="body2">
+                Segment: {testResult.segment_key}
+              </Typography>
             </Alert>
           )}
         </DialogContent>
