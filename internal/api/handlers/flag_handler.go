@@ -8,6 +8,7 @@ import (
 
 	"github.com/flexflag/flexflag/internal/services"
 	"github.com/flexflag/flexflag/internal/storage"
+	"github.com/flexflag/flexflag/internal/storage/postgres"
 	"github.com/flexflag/flexflag/pkg/types"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -17,29 +18,55 @@ type FlagHandler struct {
 	repo             storage.FlagRepository
 	auditService     *services.AuditService
 	ultraFastHandler *UltraFastHandler
+	projectRepo      *postgres.ProjectRepository
 }
 
-func NewFlagHandler(repo storage.FlagRepository, auditService *services.AuditService, ultraFastHandler *UltraFastHandler) *FlagHandler {
+func NewFlagHandler(repo storage.FlagRepository, auditService *services.AuditService, ultraFastHandler *UltraFastHandler, projectRepo *postgres.ProjectRepository) *FlagHandler {
 	return &FlagHandler{
 		repo:             repo,
 		auditService:     auditService,
 		ultraFastHandler: ultraFastHandler,
+		projectRepo:      projectRepo,
 	}
 }
 
+// CreateFlagRequest represents the request to create a new flag
 type CreateFlagRequest struct {
-	Key         string                 `json:"key" binding:"required"`
-	Name        string                 `json:"name" binding:"required"`
-	Description string                 `json:"description"`
-	Type        types.FlagType         `json:"type" binding:"required"`
-	Enabled     bool                   `json:"enabled"`
-	Default     interface{}            `json:"default" binding:"required"`
-	Environment string                 `json:"environment"`
-	ProjectID   string                 `json:"project_id"`
-	Tags        []string               `json:"tags"`
-	Metadata    map[string]interface{} `json:"metadata"`
+	Key         string                 `json:"key" binding:"required" example:"feature-toggle"`
+	Name        string                 `json:"name" binding:"required" example:"Feature Toggle"`
+	Description string                 `json:"description" example:"Description of the feature"`
+	Type        types.FlagType         `json:"type" binding:"required" example:"boolean"`
+	Enabled     bool                   `json:"enabled" example:"true"`
+	Default     interface{}            `json:"default" binding:"required" swaggertype:"object"`
+	Environment string                 `json:"environment" example:"production"`
+	ProjectID   string                 `json:"project_id" example:"proj_123"`
+	Tags        []string               `json:"tags" example:"feature,toggle"`
+	Metadata    map[string]interface{} `json:"metadata" swaggertype:"object"`
+	Variations  []SwaggerVariation     `json:"variations,omitempty"`
+	Targeting   *types.TargetingConfig `json:"targeting,omitempty"`
 }
 
+// SwaggerVariation represents a variation for Swagger documentation
+type SwaggerVariation struct {
+	ID          string      `json:"id" example:"var_1"`
+	Name        string      `json:"name" example:"Variation A"`
+	Description string      `json:"description" example:"First variation"`
+	Value       interface{} `json:"value" swaggertype:"object"`
+	Weight      int         `json:"weight" example:"50"`
+}
+
+// CreateFlag godoc
+// @Summary Create a new flag
+// @Description Create a new feature flag with specified configuration
+// @Tags flags
+// @Accept json
+// @Produce json
+// @Param flag body CreateFlagRequest true "Flag creation request"
+// @Success 201 {object} map[string]interface{} "Created flag"
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Security ApiKeyAuth
+// @Router /flags [post]
 func (h *FlagHandler) CreateFlag(c *gin.Context) {
 	var req CreateFlagRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -63,8 +90,37 @@ func (h *FlagHandler) CreateFlag(c *gin.Context) {
 		projectID = "5aa79fcc-7e77-46fd-be58-f151574e57a9" // Default project fallback
 	}
 	
-	// Define all environments where flags should be created
-	environments := []string{"production", "staging", "development"}
+	// Convert SwaggerVariation to types.Variation
+	var variations []types.Variation
+	for _, sv := range req.Variations {
+		valueBytes, _ := json.Marshal(sv.Value)
+		variations = append(variations, types.Variation{
+			ID:          sv.ID,
+			Name:        sv.Name,
+			Description: sv.Description,
+			Value:       valueBytes,
+			Weight:      sv.Weight,
+		})
+	}
+
+	// Get all environments for the project to create flags in each one
+	var environments []string
+	if h.projectRepo != nil {
+		envs, err := h.projectRepo.GetEnvironmentsByProject(c.Request.Context(), projectID)
+		if err != nil {
+			// Fallback to default environments if we can't fetch project environments
+			fmt.Printf("Warning: Failed to get environments for project %s: %v\n", projectID, err)
+			environments = []string{"production", "staging", "development"}
+		} else {
+			// Extract environment keys from the environments
+			for _, env := range envs {
+				environments = append(environments, env.Key)
+			}
+		}
+	} else {
+		// Fallback to default environments if no project repo
+		environments = []string{"production", "staging", "development"}
+	}
 	
 	// Create flag in all environments
 	var createdFlags []*types.Flag
@@ -77,7 +133,8 @@ func (h *FlagHandler) CreateFlag(c *gin.Context) {
 			Type:        req.Type,
 			Enabled:     req.Enabled,
 			Default:     defaultValue,
-			Variations:  []types.Variation{},
+			Variations:  variations,
+			Targeting:   req.Targeting,
 			Environment: env,
 			Tags:        req.Tags,
 			Metadata:    req.Metadata,
@@ -135,6 +192,17 @@ func (h *FlagHandler) CreateFlag(c *gin.Context) {
 	c.JSON(http.StatusCreated, responseFlag)
 }
 
+// GetFlag godoc
+// @Summary Get a flag by key
+// @Description Get a feature flag by its key and environment
+// @Tags flags
+// @Produce json
+// @Param key path string true "Flag key"
+// @Param environment query string false "Environment" default(production)
+// @Success 200 {object} map[string]interface{} "Flag details"
+// @Failure 404 {object} map[string]string
+// @Security ApiKeyAuth
+// @Router /flags/{key} [get]
 func (h *FlagHandler) GetFlag(c *gin.Context) {
 	key := c.Param("key")
 	environment := c.DefaultQuery("environment", "production")
@@ -148,6 +216,17 @@ func (h *FlagHandler) GetFlag(c *gin.Context) {
 	c.JSON(http.StatusOK, flag)
 }
 
+// ListFlags godoc
+// @Summary List flags
+// @Description List all feature flags for an environment, optionally filtered by project
+// @Tags flags
+// @Produce json
+// @Param environment query string false "Environment" default(production)
+// @Param project_id query string false "Project ID to filter by"
+// @Success 200 {object} map[string]interface{} "Response with flags array"
+// @Failure 500 {object} map[string]string
+// @Security ApiKeyAuth
+// @Router /flags [get]
 func (h *FlagHandler) ListFlags(c *gin.Context) {
 	environment := c.DefaultQuery("environment", "production")
 	projectID := c.Query("project_id")

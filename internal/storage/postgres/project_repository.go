@@ -291,3 +291,133 @@ func (r *ProjectRepository) GetEnvironmentsByProject(ctx context.Context, projec
 	
 	return environments, nil
 }
+
+// GetEnvironmentByID retrieves an environment by ID
+func (r *ProjectRepository) GetEnvironmentByID(ctx context.Context, id string) (*types.Environment, error) {
+	query := `
+		SELECT id, project_id, name, key, description, is_active, sort_order, settings, created_at, updated_at
+		FROM environments
+		WHERE id = $1
+	`
+	
+	env := &types.Environment{}
+	var settingsJSON sql.NullString
+	
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&env.ID, &env.ProjectID, &env.Name, &env.Key, &env.Description,
+		&env.IsActive, &env.SortOrder, &settingsJSON,
+		&env.CreatedAt, &env.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("environment not found")
+		}
+		return nil, fmt.Errorf("failed to get environment: %w", err)
+	}
+	
+	if settingsJSON.Valid {
+		if err := json.Unmarshal([]byte(settingsJSON.String), &env.Settings); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal settings: %w", err)
+		}
+	}
+	
+	return env, nil
+}
+
+// UpdateEnvironment updates an environment
+func (r *ProjectRepository) UpdateEnvironment(ctx context.Context, id string, req *types.UpdateEnvironmentRequest) error {
+	setParts := []string{}
+	args := []interface{}{}
+	argIndex := 1
+	
+	if req.Name != "" {
+		setParts = append(setParts, fmt.Sprintf("name = $%d", argIndex))
+		args = append(args, req.Name)
+		argIndex++
+	}
+	
+	if req.Description != "" {
+		setParts = append(setParts, fmt.Sprintf("description = $%d", argIndex))
+		args = append(args, req.Description)
+		argIndex++
+	}
+	
+	if req.IsActive != nil {
+		setParts = append(setParts, fmt.Sprintf("is_active = $%d", argIndex))
+		args = append(args, *req.IsActive)
+		argIndex++
+	}
+	
+	if req.SortOrder != nil {
+		setParts = append(setParts, fmt.Sprintf("sort_order = $%d", argIndex))
+		args = append(args, *req.SortOrder)
+		argIndex++
+	}
+	
+	if req.Settings != nil && len(req.Settings) > 0 {
+		settingsBytes, err := json.Marshal(req.Settings)
+		if err != nil {
+			return fmt.Errorf("failed to marshal settings: %w", err)
+		}
+		setParts = append(setParts, fmt.Sprintf("settings = $%d", argIndex))
+		args = append(args, string(settingsBytes))
+		argIndex++
+	}
+	
+	if len(setParts) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
+	
+	setParts = append(setParts, fmt.Sprintf("updated_at = $%d", argIndex))
+	args = append(args, time.Now())
+	argIndex++
+	
+	// Add the ID as the last argument
+	args = append(args, id)
+	
+	setClause := ""
+	for i, part := range setParts {
+		if i > 0 {
+			setClause += ", "
+		}
+		setClause += part
+	}
+	
+	query := fmt.Sprintf(`
+		UPDATE environments
+		SET %s
+		WHERE id = $%d
+	`, setClause, argIndex)
+	
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to update environment: %w", err)
+	}
+	
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("environment not found")
+	}
+	
+	return nil
+}
+
+// DeleteEnvironment deletes an environment (soft delete)
+func (r *ProjectRepository) DeleteEnvironment(ctx context.Context, id string) error {
+	query := `
+		UPDATE environments
+		SET is_active = false, updated_at = NOW()
+		WHERE id = $1
+	`
+	
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete environment: %w", err)
+	}
+	
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("environment not found")
+	}
+	
+	return nil
+}

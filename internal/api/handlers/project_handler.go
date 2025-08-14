@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/flexflag/flexflag/internal/storage/postgres"
 	"github.com/flexflag/flexflag/pkg/types"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type ProjectHandler struct {
@@ -28,7 +30,19 @@ func NewProjectHandler(projectRepo *postgres.ProjectRepository, flagRepo storage
 	}
 }
 
-// CreateProject creates a new project
+// CreateProject godoc
+// @Summary Create a new project
+// @Description Create a new project with specified configuration
+// @Tags projects
+// @Accept json
+// @Produce json
+// @Param project body types.CreateProjectRequest true "Project creation request"
+// @Success 201 {object} map[string]interface{} "Created project"
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Security ApiKeyAuth
+// @Router /projects [post]
 func (h *ProjectHandler) CreateProject(c *gin.Context) {
 	// Get user from context
 	userInterface, exists := c.Get("user")
@@ -75,10 +89,57 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 		return
 	}
 
+	// Create default environments for the new project
+	defaultEnvironments := []types.Environment{
+		{
+			ProjectID:   project.ID,
+			Key:         "production",
+			Name:        "Production",
+			Description: "Production environment",
+			IsActive:    true,
+			SortOrder:   0,
+		},
+		{
+			ProjectID:   project.ID,
+			Key:         "staging",
+			Name:        "Staging",
+			Description: "Staging environment",
+			IsActive:    true,
+			SortOrder:   1,
+		},
+		{
+			ProjectID:   project.ID,
+			Key:         "development",
+			Name:        "Development",
+			Description: "Development environment",
+			IsActive:    true,
+			SortOrder:   2,
+		},
+	}
+
+	for _, env := range defaultEnvironments {
+		if err := h.projectRepo.CreateEnvironment(c.Request.Context(), &env); err != nil {
+			// Log the error but don't fail the project creation
+			fmt.Printf("Warning: Failed to create default environment %s for project %s: %v\n", env.Key, project.ID, err)
+		} else {
+			fmt.Printf("Successfully created default environment %s for project %s\n", env.Key, project.ID)
+		}
+	}
+
 	c.JSON(http.StatusCreated, project)
 }
 
-// ListProjects lists all projects
+// ListProjects godoc
+// @Summary List projects
+// @Description List all projects with pagination
+// @Tags projects
+// @Produce json
+// @Param limit query int false "Number of projects to return" default(20)
+// @Param offset query int false "Number of projects to skip" default(0)
+// @Success 200 {object} map[string]interface{} "Response with projects array"
+// @Failure 500 {object} map[string]string
+// @Security ApiKeyAuth
+// @Router /projects [get]
 func (h *ProjectHandler) ListProjects(c *gin.Context) {
 	// Parse pagination parameters
 	limitStr := c.DefaultQuery("limit", "20")
@@ -246,6 +307,48 @@ func (h *ProjectHandler) CreateEnvironment(c *gin.Context) {
 		return
 	}
 
+	// Copy existing flags from other environments to the new environment
+	if h.flagRepo != nil {
+		// Get flags from production environment as the source (or any existing environment)
+		sourceEnvs := []string{"production", "staging", "development"}
+		var sourceFlags []*types.Flag
+		
+		for _, sourceEnv := range sourceEnvs {
+			flags, err := h.flagRepo.ListByProject(c.Request.Context(), project.ID, sourceEnv)
+			if err == nil && len(flags) > 0 {
+				sourceFlags = flags
+				fmt.Printf("Found %d flags in %s environment to copy to new environment %s\n", len(flags), sourceEnv, env.Key)
+				break
+			}
+		}
+		
+		// Copy each flag to the new environment
+		for _, sourceFlag := range sourceFlags {
+			newFlag := &types.Flag{
+				ID:          uuid.New().String(),
+				Key:         sourceFlag.Key,
+				Name:        sourceFlag.Name,
+				Description: sourceFlag.Description,
+				Type:        sourceFlag.Type,
+				Enabled:     sourceFlag.Enabled,
+				Default:     sourceFlag.Default,
+				Variations:  sourceFlag.Variations,
+				Targeting:   sourceFlag.Targeting,
+				Environment: env.Key, // Set to the new environment
+				Tags:        sourceFlag.Tags,
+				Metadata:    sourceFlag.Metadata,
+				ProjectID:   sourceFlag.ProjectID,
+			}
+			
+			if err := h.flagRepo.Create(c.Request.Context(), newFlag); err != nil {
+				// Log error but don't fail environment creation
+				fmt.Printf("Warning: Failed to copy flag %s to new environment %s: %v\n", sourceFlag.Key, env.Key, err)
+			} else {
+				fmt.Printf("Successfully copied flag %s to new environment %s\n", sourceFlag.Key, env.Key)
+			}
+		}
+	}
+
 	c.JSON(http.StatusCreated, env)
 }
 
@@ -258,8 +361,10 @@ func (h *ProjectHandler) GetEnvironments(c *gin.Context) {
 	}
 
 	// Get project to ensure it exists
+	fmt.Printf("Looking for project with slug: %s\n", slug)
 	project, err := h.projectRepo.GetBySlug(c.Request.Context(), slug)
 	if err != nil {
+		fmt.Printf("Error getting project with slug %s: %v\n", slug, err)
 		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
 			return
@@ -267,14 +372,79 @@ func (h *ProjectHandler) GetEnvironments(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get project"})
 		return
 	}
+	fmt.Printf("Found project: %s (ID: %s)\n", project.Name, project.ID)
 
 	environments, err := h.projectRepo.GetEnvironmentsByProject(c.Request.Context(), project.ID)
 	if err != nil {
+		// Add debug logging
+		fmt.Printf("Error getting environments for project %s: %v\n", project.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get environments"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"environments": environments})
+}
+
+// UpdateEnvironment updates an environment
+func (h *ProjectHandler) UpdateEnvironment(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Environment ID is required"})
+		return
+	}
+
+	var req types.UpdateEnvironmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.projectRepo.UpdateEnvironment(c.Request.Context(), id, &req); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update environment"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Environment updated successfully"})
+}
+
+// DeleteEnvironment deletes an environment
+func (h *ProjectHandler) DeleteEnvironment(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Environment ID is required"})
+		return
+	}
+
+	// Get environment first to check if it's a default environment
+	env, err := h.projectRepo.GetEnvironmentByID(c.Request.Context(), id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get environment"})
+		return
+	}
+
+	// Prevent deletion of default environments
+	defaultEnvs := []string{"production", "staging", "development"}
+	for _, defaultEnv := range defaultEnvs {
+		if env.Key == defaultEnv {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete default environment"})
+			return
+		}
+	}
+
+	if err := h.projectRepo.DeleteEnvironment(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete environment"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Environment deleted successfully"})
 }
 
 // GetProjectStats gets statistics for a project
