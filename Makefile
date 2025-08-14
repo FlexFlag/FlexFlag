@@ -81,6 +81,7 @@ install-tools: ## Install development tools
 	@go install golang.org/x/tools/cmd/goimports@latest
 	@go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 	@go install github.com/cosmtrek/air@latest
+	@go install github.com/swaggo/swag/cmd/swag@latest
 
 dev: ## Run server with hot reload
 	@air
@@ -91,7 +92,16 @@ generate: ## Generate code
 
 swagger: ## Generate Swagger documentation
 	@echo "Generating Swagger documentation..."
-	@swag init -g cmd/server/main.go -o api/
+	@if [ ! -f "$(shell go env GOPATH)/bin/swag" ]; then \
+		echo "Installing swag tool..."; \
+		go install github.com/swaggo/swag/cmd/swag@v1.16.3; \
+	fi
+	@$(shell go env GOPATH)/bin/swag init -g cmd/server/main.go -o api/ -d ./
+	@echo "Fixing compatibility issues..."
+	@sed -i '' '/LeftDelim:/d' api/docs.go
+	@sed -i '' '/RightDelim:/d' api/docs.go
+	@echo "✅ Swagger documentation generated successfully!"
+	@echo "📖 View at: http://localhost:8080/swagger/index.html"
 
 proto: ## Generate protobuf files
 	@echo "Generating protobuf files..."

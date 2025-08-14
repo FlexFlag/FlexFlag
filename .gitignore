@@ -13,6 +13,11 @@ bin/
 *.out
 coverage.html
 
+# Generated API documentation
+api/docs.go
+api/swagger.json
+api/swagger.yaml
+
 # Go workspace
 go.work
 
