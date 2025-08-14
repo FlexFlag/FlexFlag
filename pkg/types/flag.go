@@ -32,6 +32,7 @@ const (
 	FlagTypeString  FlagType = "string"
 	FlagTypeNumber  FlagType = "number"
 	FlagTypeJSON    FlagType = "json"
+	FlagTypeVariant FlagType = "variant" // A/B testing with multiple variants
 )
 
 type Variation struct {
@@ -58,10 +59,11 @@ type TargetingRule struct {
 }
 
 type RolloutConfig struct {
-	Type        string             `json:"type"`
-	Variations  []VariationRollout `json:"variations"`
-	BucketBy    string             `json:"bucket_by"`
-	Seed        int64              `json:"seed"`
+	Type            string             `json:"type"`
+	Variations      []VariationRollout `json:"variations"`
+	BucketBy        string             `json:"bucket_by"`
+	Seed            int64              `json:"seed"`
+	StickyBucketing bool               `json:"sticky_bucketing,omitempty"`
 }
 
 type VariationRollout struct {
