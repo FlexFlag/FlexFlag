@@ -19,6 +19,7 @@ type FlagHandler struct {
 	auditService     *services.AuditService
 	ultraFastHandler *UltraFastHandler
 	projectRepo      *postgres.ProjectRepository
+	edgeSyncHandler  *EdgeSyncHandler
 }
 
 func NewFlagHandler(repo storage.FlagRepository, auditService *services.AuditService, ultraFastHandler *UltraFastHandler, projectRepo *postgres.ProjectRepository) *FlagHandler {
@@ -28,6 +29,11 @@ func NewFlagHandler(repo storage.FlagRepository, auditService *services.AuditSer
 		ultraFastHandler: ultraFastHandler,
 		projectRepo:      projectRepo,
 	}
+}
+
+// SetEdgeSyncHandler sets the edge sync handler for broadcasting updates
+func (h *FlagHandler) SetEdgeSyncHandler(edgeSyncHandler *EdgeSyncHandler) {
+	h.edgeSyncHandler = edgeSyncHandler
 }
 
 // CreateFlagRequest represents the request to create a new flag
@@ -155,6 +161,11 @@ func (h *FlagHandler) CreateFlag(c *gin.Context) {
 		// Refresh ultra-fast cache for new flag
 		if h.ultraFastHandler != nil {
 			h.ultraFastHandler.RefreshFlag(flag.Key, env)
+		}
+		
+		// Broadcast to edge servers
+		if h.edgeSyncHandler != nil {
+			h.edgeSyncHandler.BroadcastFlagUpdate(flag, "create")
 		}
 
 		createdFlags = append(createdFlags, flag)
@@ -289,6 +300,11 @@ func (h *FlagHandler) UpdateFlag(c *gin.Context) {
 	if h.ultraFastHandler != nil {
 		h.ultraFastHandler.RefreshFlag(existingFlag.Key, environment)
 	}
+	
+	// Broadcast to edge servers
+	if h.edgeSyncHandler != nil {
+		h.edgeSyncHandler.BroadcastFlagUpdate(existingFlag, "update")
+	}
 
 	c.JSON(http.StatusOK, existingFlag)
 }
@@ -305,6 +321,16 @@ func (h *FlagHandler) DeleteFlag(c *gin.Context) {
 	// Refresh ultra-fast cache (removes deleted flag)
 	if h.ultraFastHandler != nil {
 		h.ultraFastHandler.RefreshFlag(key, environment)
+	}
+	
+	// Broadcast deletion to edge servers
+	if h.edgeSyncHandler != nil {
+		// Create a minimal flag object for the delete broadcast
+		flag := &types.Flag{
+			Key:         key,
+			Environment: environment,
+		}
+		h.edgeSyncHandler.BroadcastFlagUpdate(flag, "delete")
 	}
 
 	c.JSON(http.StatusNoContent, nil)
@@ -338,6 +364,11 @@ func (h *FlagHandler) ToggleFlag(c *gin.Context) {
 	// Refresh ultra-fast cache
 	if h.ultraFastHandler != nil {
 		h.ultraFastHandler.RefreshFlag(flag.Key, environment)
+	}
+	
+	// Broadcast to edge servers
+	if h.edgeSyncHandler != nil {
+		h.edgeSyncHandler.BroadcastFlagUpdate(flag, "update")
 	}
 
 	// Log the toggle action

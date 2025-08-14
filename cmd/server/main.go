@@ -94,7 +94,9 @@ func main() {
 	
 	// Initialize handlers
 	ultraFastHandler := handlers.NewUltraFastHandler(flagRepo)
+	edgeSyncHandler := handlers.NewEdgeSyncHandler(flagRepo, apiKeyRepo)
 	flagHandler := handlers.NewFlagHandler(flagRepo, auditService, ultraFastHandler, projectRepo)
+	flagHandler.SetEdgeSyncHandler(edgeSyncHandler)
 	authHandler := handlers.NewAuthHandler(userRepo, jwtManager)
 	projectHandler := handlers.NewProjectHandler(projectRepo, flagRepo, segmentRepo, rolloutRepo)
 	segmentHandler := handlers.NewSegmentHandler(segmentRepo)
@@ -255,6 +257,15 @@ func main() {
 		// Ultra-fast flag evaluation
 		api.POST("/evaluate/ultra", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), ultraFastHandler.UltraFastEvaluate)
 		api.GET("/evaluate/ultra/stats", auth.AuthMiddleware(jwtManager), ultraFastHandler.GetStats)
+		
+		// Edge server synchronization endpoints
+		edge := api.Group("/edge")
+		{
+			edge.GET("/sync", edgeSyncHandler.BulkSync)
+			edge.GET("/sync/ws", edgeSyncHandler.WebSocketSync)
+			edge.POST("/auth", edgeSyncHandler.AuthenticateAPIKey)
+			edge.GET("/servers", auth.AuthMiddleware(jwtManager), edgeSyncHandler.GetEdgeServersStatus)
+		}
 	}
 
 	srv := &http.Server{
