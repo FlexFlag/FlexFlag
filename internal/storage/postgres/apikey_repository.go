@@ -139,7 +139,7 @@ func (r *ApiKeyRepository) AuthenticateApiKey(ctx context.Context, apiKey string
 		       ak.permissions, ak.created_by, ak.created_at, ak.updated_at,
 		       ak.expires_at, ak.last_used_at, ak.is_active,
 		       e.key as env_key, e.name as env_name, e.description as env_description,
-		       p.name as project_name, p.slug as project_slug
+		       p.name as project_name, p.name as project_slug
 		FROM api_keys ak
 		JOIN environments e ON ak.environment_id = e.id
 		JOIN projects p ON ak.project_id = p.id
@@ -281,4 +281,47 @@ func (r *ApiKeyRepository) getEnvironmentByID(ctx context.Context, envID string)
 func (r *ApiKeyRepository) updateLastUsed(ctx context.Context, keyID string) {
 	query := `UPDATE api_keys SET last_used_at = NOW() WHERE id = $1`
 	r.db.ExecContext(ctx, query, keyID)
+}
+
+// GetAllApiKeys retrieves all API keys for edge server sync
+func (r *ApiKeyRepository) GetAllApiKeys(ctx context.Context) ([]*types.ApiKey, error) {
+	query := `
+		SELECT 
+			id, project_id, environment_id, name, key_hash, key_prefix,
+			permissions, created_by, created_at, expires_at, is_active
+		FROM api_keys
+		WHERE is_active = true
+		ORDER BY created_at DESC
+	`
+	
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query API keys: %w", err)
+	}
+	defer rows.Close()
+	
+	var apiKeys []*types.ApiKey
+	for rows.Next() {
+		apiKey := &types.ApiKey{}
+		var permissionsArray pq.StringArray
+		
+		err := rows.Scan(
+			&apiKey.ID, &apiKey.ProjectID, &apiKey.EnvironmentID,
+			&apiKey.Name, &apiKey.KeyHash, &apiKey.KeyPrefix,
+			&permissionsArray, &apiKey.CreatedBy, &apiKey.CreatedAt,
+			&apiKey.ExpiresAt, &apiKey.IsActive,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan API key: %w", err)
+		}
+		
+		apiKey.Permissions = []string(permissionsArray)
+		apiKeys = append(apiKeys, apiKey)
+	}
+	
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating API keys: %w", err)
+	}
+	
+	return apiKeys, nil
 }

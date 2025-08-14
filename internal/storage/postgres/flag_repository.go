@@ -497,3 +497,79 @@ func (r *FlagRepository) ListByTags(ctx context.Context, environment string, tag
 
 	return flags, nil
 }
+
+// GetAllFlags retrieves all flags with pagination for edge server sync
+func (r *FlagRepository) GetAllFlags(ctx context.Context, limit, offset int) ([]*types.Flag, error) {
+	query := `
+		SELECT 
+			id, project_id, key, name, description, type, enabled, 
+			default_value, variations, targeting, rollout_config,
+			experiment_config, environment, created_at, updated_at, tags, metadata
+		FROM flags 
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`
+	
+	rows, err := r.db.Query(query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query flags: %w", err)
+	}
+	defer rows.Close()
+	
+	var flags []*types.Flag
+	for rows.Next() {
+		flag := &types.Flag{}
+		var variationsJSON, targetingJSON, rolloutConfigJSON, experimentConfigJSON, tagsJSON, metadataJSON sql.NullString
+		
+		err := rows.Scan(
+			&flag.ID, &flag.ProjectID, &flag.Key, &flag.Name, &flag.Description,
+			&flag.Type, &flag.Enabled, &flag.Default, &variationsJSON,
+			&targetingJSON, &rolloutConfigJSON, &experimentConfigJSON,
+			&flag.Environment, &flag.CreatedAt, &flag.UpdatedAt, &tagsJSON, &metadataJSON,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan flag: %w", err)
+		}
+		
+		// Unmarshal JSON fields
+		if variationsJSON.Valid {
+			if err := json.Unmarshal([]byte(variationsJSON.String), &flag.Variations); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal variations: %w", err)
+			}
+		}
+		
+		if targetingJSON.Valid {
+			if err := json.Unmarshal([]byte(targetingJSON.String), &flag.Targeting); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal targeting: %w", err)
+			}
+		}
+		
+		if rolloutConfigJSON.Valid {
+			flag.RolloutConfig = json.RawMessage(rolloutConfigJSON.String)
+		}
+		
+		if experimentConfigJSON.Valid {
+			flag.ExperimentConfig = json.RawMessage(experimentConfigJSON.String)
+		}
+		
+		if tagsJSON.Valid {
+			if err := json.Unmarshal([]byte(tagsJSON.String), &flag.Tags); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal tags: %w", err)
+			}
+		}
+		
+		if metadataJSON.Valid {
+			if err := json.Unmarshal([]byte(metadataJSON.String), &flag.Metadata); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+			}
+		}
+		
+		flags = append(flags, flag)
+	}
+	
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating flags: %w", err)
+	}
+	
+	return flags, nil
+}
