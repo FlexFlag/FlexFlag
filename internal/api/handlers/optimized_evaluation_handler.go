@@ -39,13 +39,26 @@ func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 	}
 
 	environment := c.DefaultQuery("environment", "production")
+	projectID := c.Query("project_id")
+	
+	// If API key authentication is used, override environment and project from key
+	if apiKeyEnv, exists := c.Get("environment"); exists {
+		environment = apiKeyEnv.(string)
+	}
+	if apiKeyProjectID, exists := c.Get("projectID"); exists {
+		projectID = apiKeyProjectID.(string)
+	}
 
 	// Try cache first
 	flag, found := h.cache.Get(c.Request.Context(), req.FlagKey, environment)
 	if !found {
 		// Cache miss - fetch from database
 		var err error
-		flag, err = h.repo.GetByKey(c.Request.Context(), req.FlagKey, environment)
+		if projectID != "" {
+			flag, err = h.repo.GetByProjectKey(c.Request.Context(), projectID, req.FlagKey, environment)
+		} else {
+			flag, err = h.repo.GetByKey(c.Request.Context(), req.FlagKey, environment)
+		}
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "flag not found"})
 			return
@@ -128,6 +141,16 @@ func (h *OptimizedEvaluationHandler) FastBatchEvaluate(c *gin.Context) {
 	}
 
 	environment := c.DefaultQuery("environment", "production")
+	projectID := c.Query("project_id")
+	
+	// If API key authentication is used, override environment and project from key
+	if apiKeyEnv, exists := c.Get("environment"); exists {
+		environment = apiKeyEnv.(string)
+	}
+	if apiKeyProjectID, exists := c.Get("projectID"); exists {
+		projectID = apiKeyProjectID.(string)
+	}
+	
 	results := make(map[string]interface{})
 	
 	// Batch process all flags
@@ -137,7 +160,11 @@ func (h *OptimizedEvaluationHandler) FastBatchEvaluate(c *gin.Context) {
 		if !found {
 			// Cache miss - fetch from database
 			var err error
-			flag, err = h.repo.GetByKey(c.Request.Context(), flagKey, environment)
+			if projectID != "" {
+				flag, err = h.repo.GetByProjectKey(c.Request.Context(), projectID, flagKey, environment)
+			} else {
+				flag, err = h.repo.GetByKey(c.Request.Context(), flagKey, environment)
+			}
 			if err != nil {
 				results[flagKey] = map[string]interface{}{
 					"error": "flag not found",

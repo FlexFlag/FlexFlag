@@ -32,24 +32,38 @@ func NewEvaluationHandler(repo storage.FlagRepository, rolloutRepo *postgres.Rol
 	}
 }
 
+// EvaluateRequest represents a flag evaluation request
 type EvaluateRequest struct {
-	FlagKey    string                 `json:"flag_key" binding:"required"`
-	UserID     string                 `json:"user_id"`
-	UserKey    string                 `json:"user_key"`
-	Attributes map[string]interface{} `json:"attributes"`
+	FlagKey    string                 `json:"flag_key" binding:"required" example:"feature-toggle"`
+	UserID     string                 `json:"user_id" example:"user_123"`
+	UserKey    string                 `json:"user_key" example:"user_key_456"`
+	Attributes map[string]interface{} `json:"attributes" swaggertype:"object"`
 }
 
+// EvaluateResponse represents a flag evaluation response
 type EvaluateResponse struct {
-	FlagKey       string          `json:"flag_key"`
-	Value         interface{}     `json:"value"`
-	Variation     string          `json:"variation,omitempty"`
-	Reason        string          `json:"reason"`
-	RuleID        string          `json:"rule_id,omitempty"`
-	Default       bool            `json:"default"`
-	EvaluationTime float64        `json:"evaluation_time_ms"`
+	FlagKey       string          `json:"flag_key" example:"feature-toggle"`
+	Value         interface{}     `json:"value" swaggertype:"object"`
+	Variation     string          `json:"variation,omitempty" example:"variation_a"`
+	Reason        string          `json:"reason" example:"RULE_MATCH"`
+	RuleID        string          `json:"rule_id,omitempty" example:"rule_123"`
+	Default       bool            `json:"default" example:"false"`
+	EvaluationTime float64        `json:"evaluation_time_ms" example:"1.234"`
 	Timestamp     time.Time       `json:"timestamp"`
 }
 
+// Evaluate godoc
+// @Summary Evaluate a feature flag
+// @Description Evaluate a feature flag for a user with given attributes
+// @Tags evaluation
+// @Accept json
+// @Produce json
+// @Param request body EvaluateRequest true "Evaluation request"
+// @Success 200 {object} EvaluateResponse
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Security ApiKeyAuth
+// @Router /evaluate [post]
 func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 	startTime := time.Now()
 	
@@ -59,8 +73,17 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 		return
 	}
 
+	// Use environment from API key if available, otherwise from query parameter
 	environment := c.DefaultQuery("environment", "production")
 	projectID := c.Query("project_id")
+	
+	// If API key authentication is used, override environment and project from key
+	if apiKeyEnv, exists := c.Get("environment"); exists {
+		environment = apiKeyEnv.(string)
+	}
+	if apiKeyProjectID, exists := c.Get("projectID"); exists {
+		projectID = apiKeyProjectID.(string)
+	}
 
 	// Fetch flag from database - need to use project-specific method
 	var flag *types.Flag
@@ -214,6 +237,35 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 		}
 	}
 
+	// Handle sticky bucketing for variant flags before falling back to engine
+	if flag.Type == "variant" && flag.Targeting != nil && flag.Targeting.Rollout != nil && flag.Targeting.Rollout.StickyBucketing {
+		userKey := req.UserKey
+		if userKey == "" {
+			userKey = req.UserID
+		}
+		
+		// Check for existing sticky assignment
+		stickyAssignment, err := h.rolloutRepo.GetStickyAssignment(c.Request.Context(), flag.ID, environment, userKey)
+		if err == nil && stickyAssignment != nil {
+			// Find the variation for this assignment
+			for _, variation := range flag.Variations {
+				if variation.ID == stickyAssignment.VariationID {
+					evalTime := float64(time.Since(startTime).Microseconds()) / 1000.0
+					c.JSON(http.StatusOK, EvaluateResponse{
+						FlagKey:        flag.Key,
+						Value:          variation.Value,
+						Variation:      variation.ID,
+						Reason:         "sticky_assignment",
+						Default:        false,
+						EvaluationTime: evalTime,
+						Timestamp:      time.Now(),
+					})
+					return
+				}
+			}
+		}
+	}
+
 	// Fall back to normal flag evaluation if no rollouts
 	evalResp, err := h.engine.EvaluateFlag(c.Request.Context(), evalReq)
 	if err != nil {
@@ -227,6 +279,30 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 	// Parse the value from JSON
 	var value interface{}
 	json.Unmarshal(evalResp.Value, &value)
+
+	// Create sticky assignment for variant flags if sticky bucketing is enabled and user got a variation
+	if flag.Type == "variant" && flag.Targeting != nil && flag.Targeting.Rollout != nil && 
+		flag.Targeting.Rollout.StickyBucketing && evalResp.Variation != "" && !evalResp.Default {
+		
+		userKey := req.UserKey
+		if userKey == "" {
+			userKey = req.UserID
+		}
+		
+		// Check if assignment doesn't already exist
+		existingAssignment, _ := h.rolloutRepo.GetStickyAssignment(c.Request.Context(), flag.ID, environment, userKey)
+		if existingAssignment == nil {
+			assignment := &types.StickyAssignment{
+				FlagID:      flag.ID,
+				Environment: environment,
+				UserID:      req.UserID,
+				UserKey:     userKey,
+				VariationID: evalResp.Variation,
+				BucketKey:   fmt.Sprintf("%s:%s:%d", flag.Key, userKey, flag.Targeting.Rollout.Seed),
+			}
+			h.rolloutRepo.CreateStickyAssignment(c.Request.Context(), assignment)
+		}
+	}
 
 	response := EvaluateResponse{
 		FlagKey:        evalResp.FlagKey,
@@ -258,11 +334,28 @@ func (h *EvaluationHandler) BatchEvaluate(c *gin.Context) {
 	}
 
 	environment := c.DefaultQuery("environment", "production")
+	projectID := c.Query("project_id")
+	
+	// If API key authentication is used, override environment and project from key
+	if apiKeyEnv, exists := c.Get("environment"); exists {
+		environment = apiKeyEnv.(string)
+	}
+	if apiKeyProjectID, exists := c.Get("projectID"); exists {
+		projectID = apiKeyProjectID.(string)
+	}
+	
 	results := make(map[string]interface{})
 	
 	for _, flagKey := range req.FlagKeys {
-		// Fetch flag from database
-		flag, err := h.repo.GetByKey(c.Request.Context(), flagKey, environment)
+		// Fetch flag from database - use project-specific method if projectID available
+		var flag *types.Flag
+		var err error
+		
+		if projectID != "" {
+			flag, err = h.repo.GetByProjectKey(c.Request.Context(), projectID, flagKey, environment)
+		} else {
+			flag, err = h.repo.GetByKey(c.Request.Context(), flagKey, environment)
+		}
 		if err != nil {
 			results[flagKey] = map[string]interface{}{
 				"error": "flag not found",

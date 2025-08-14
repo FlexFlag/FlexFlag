@@ -106,6 +106,12 @@ func (h *UltraFastHandler) UltraFastEvaluate(c *gin.Context) {
 	}
 	
 	environment := c.DefaultQuery("environment", "production")
+	
+	// If API key authentication is used, override environment from key
+	if apiKeyEnv, exists := c.Get("environment"); exists {
+		environment = apiKeyEnv.(string)
+	}
+	
 	cacheKey := h.generateCacheKey(&req, environment)
 	
 	// Check response cache first

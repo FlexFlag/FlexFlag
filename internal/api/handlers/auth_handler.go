@@ -21,7 +21,18 @@ func NewAuthHandler(userRepo *postgres.UserRepository, jwtManager *auth.JWTManag
 	}
 }
 
-// Register creates a new user account
+// Register godoc
+// @Summary Register a new user
+// @Description Create a new user account
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param user body types.CreateUserRequest true "User registration request"
+// @Success 201 {object} map[string]interface{} "User created successfully"
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req types.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
