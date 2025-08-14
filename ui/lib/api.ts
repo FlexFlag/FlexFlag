@@ -1,6 +1,6 @@
 import { Flag, CreateFlagRequest, EvaluationRequest, EvaluationResponse, PerformanceStats, UltraFastStats } from '@/types';
 
-const API_BASE = 'http://localhost:8080/api/v1';
+const API_BASE = '/api/v1';
 
 class ApiClient {
   private getAuthToken(): string | null {
@@ -170,6 +170,11 @@ class ApiClient {
     return this.request<{flags: number, segments: number, rollouts: number}>(`/project-stats/${projectId}`);
   }
 
+  async getProjectEnvironments(projectSlug: string): Promise<any[]> {
+    const response = await this.request<{environments: any[]}>(`/projects/${projectSlug}/environments`);
+    return response.environments || [];
+  }
+
   // Audit Logs (placeholder - backend endpoint would be needed)
   async getAuditLogs(projectId?: string): Promise<any[]> {
     const params = new URLSearchParams();
@@ -195,6 +200,32 @@ class ApiClient {
         last_login: new Date().toISOString(),
       }
     ]);
+  }
+
+  // API Key Management
+  async createApiKey(projectId: string, apiKey: any): Promise<any> {
+    return this.request<any>(`/project-api-keys/${projectId}`, {
+      method: 'POST',
+      body: JSON.stringify(apiKey),
+    });
+  }
+
+  async getApiKeys(projectId: string): Promise<any[]> {
+    const response = await this.request<{api_keys: any[]}>(`/project-api-keys/${projectId}`);
+    return response.api_keys || [];
+  }
+
+  async updateApiKey(projectId: string, keyId: string, updates: any): Promise<void> {
+    return this.request<void>(`/project-api-keys/${projectId}/${keyId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteApiKey(projectId: string, keyId: string): Promise<void> {
+    return this.request<void>(`/project-api-keys/${projectId}/${keyId}`, {
+      method: 'DELETE',
+    });
   }
 
   // Health Check
