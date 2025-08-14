@@ -258,8 +258,8 @@ export default function EnvironmentsPage() {
       <Grid container spacing={3}>
         {environments.map((environment) => (
           <Grid item xs={12} md={6} lg={4} key={environment.id}>
-            <Card>
-              <CardContent>
+            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ flexGrow: 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="h6" component="h2">
                     {environment.name}
@@ -273,11 +273,11 @@ export default function EnvironmentsPage() {
                 <Typography color="text.secondary" gutterBottom>
                   Key: <code>{environment.key}</code>
                 </Typography>
-                {environment.description && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    {environment.description}
+                <Box sx={{ minHeight: '2.5rem', mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {environment.description || 'No description provided'}
                   </Typography>
-                )}
+                </Box>
                 <Typography variant="body2" color="text.secondary">
                   Sort Order: {environment.sort_order}
                 </Typography>
