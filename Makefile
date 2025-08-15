@@ -28,6 +28,12 @@ test: ## Run tests
 	@go test -v -race -coverprofile=coverage.out ./...
 	@go tool cover -html=coverage.out -o coverage.html
 
+coverage: ## Run tests and display coverage percentage
+	@echo "Running tests and calculating coverage..."
+	@go test -coverprofile=coverage.out ./... > /dev/null 2>&1 || true
+	@go tool cover -func=coverage.out | tail -1
+	@echo "📊 For detailed coverage report, run: make test"
+
 test-integration: ## Run integration tests
 	@echo "Running integration tests..."
 	@go test -v -tags=integration ./test/...
