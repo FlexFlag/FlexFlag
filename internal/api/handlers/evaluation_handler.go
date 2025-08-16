@@ -9,19 +9,18 @@ import (
 	"github.com/flexflag/flexflag/internal/core/evaluation"
 	"github.com/flexflag/flexflag/internal/core/rollout"
 	"github.com/flexflag/flexflag/internal/storage"
-	"github.com/flexflag/flexflag/internal/storage/postgres"
 	"github.com/flexflag/flexflag/pkg/types"
 	"github.com/gin-gonic/gin"
 )
 
 type EvaluationHandler struct {
 	repo         storage.FlagRepository
-	rolloutRepo  *postgres.RolloutRepository
+	rolloutRepo  storage.RolloutRepository
 	engine       *evaluation.Engine
 	rolloutEval  *rollout.Evaluator
 }
 
-func NewEvaluationHandler(repo storage.FlagRepository, rolloutRepo *postgres.RolloutRepository) *EvaluationHandler {
+func NewEvaluationHandler(repo storage.FlagRepository, rolloutRepo storage.RolloutRepository) *EvaluationHandler {
 	engine := evaluation.NewEngine()
 	rolloutEval := rollout.NewEvaluator()
 	return &EvaluationHandler{

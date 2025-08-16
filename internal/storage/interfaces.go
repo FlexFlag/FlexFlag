@@ -38,6 +38,20 @@ type EvaluationStats struct {
 	LastEvaluated *types.EvaluationResponse `json:"last_evaluated"`
 }
 
+type RolloutRepository interface {
+	Create(ctx context.Context, rollout *types.Rollout) error
+	GetByID(ctx context.Context, id string) (*types.Rollout, error)
+	GetByFlag(ctx context.Context, flagID, environment string) ([]*types.Rollout, error)
+	GetByProject(ctx context.Context, projectID, environment string) ([]*types.Rollout, error)
+	GetActiveRollouts(ctx context.Context, flagID, environment string) ([]*types.Rollout, error)
+	Update(ctx context.Context, rollout *types.Rollout) error
+	Delete(ctx context.Context, id string) error
+	CreateStickyAssignment(ctx context.Context, assignment *types.StickyAssignment) error
+	GetStickyAssignment(ctx context.Context, flagID, environment, userKey string) (*types.StickyAssignment, error)
+	DeleteStickyAssignment(ctx context.Context, flagID, environment, userKey string) error
+	CleanupExpiredAssignments(ctx context.Context) error
+}
+
 type AuditRepository interface {
 	Create(ctx context.Context, log *types.AuditLog) error
 	List(ctx context.Context, projectID string, limit, offset int) ([]*types.AuditLog, error)
