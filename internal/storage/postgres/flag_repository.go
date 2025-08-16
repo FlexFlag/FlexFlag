@@ -435,7 +435,7 @@ func (r *FlagRepository) Delete(ctx context.Context, key, environment string) er
 func (r *FlagRepository) ListByTags(ctx context.Context, environment string, tags []string) ([]*types.Flag, error) {
 	query := `
 		SELECT 
-			id, key, name, description, type, enabled,
+			id, project_id, key, name, description, type, enabled,
 			default_value, variations, targeting, environment,
 			tags, metadata, created_at, updated_at
 		FROM flags

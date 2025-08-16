@@ -2,7 +2,6 @@ package handlers_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +9,7 @@ import (
 
 	"github.com/flexflag/flexflag/pkg/types"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 
@@ -128,46 +125,6 @@ func TestEvaluationResponse_Structure(t *testing.T) {
 	assert.True(t, response.Default)
 }
 
-func TestFlagRepository_GetByKey_NotFound(t *testing.T) {
-	mockRepo := new(MockFlagRepository)
-	
-	// Mock flag not found
-	mockRepo.On("GetByKey", mock.Anything, "nonexistent-flag", "production").Return(nil, assert.AnError)
-	
-	ctx := context.Background()
-	flag, err := mockRepo.GetByKey(ctx, "nonexistent-flag", "production")
-	
-	assert.Error(t, err)
-	assert.Nil(t, flag)
-	mockRepo.AssertExpectations(t)
-}
-
-func TestFlagRepository_GetByKey_Success(t *testing.T) {
-	mockRepo := new(MockFlagRepository)
-	
-	expectedFlag := &types.Flag{
-		ID:          uuid.New().String(),
-		Key:         "test-flag",
-		Name:        "Test Flag",
-		Type:        types.FlagTypeBoolean,
-		Enabled:     true,
-		Default:     json.RawMessage(`true`),
-		Environment: "production",
-		ProjectID:   "proj_123",
-	}
-	
-	mockRepo.On("GetByKey", mock.Anything, "test-flag", "production").Return(expectedFlag, nil)
-	
-	ctx := context.Background()
-	flag, err := mockRepo.GetByKey(ctx, "test-flag", "production")
-	
-	assert.NoError(t, err)
-	assert.NotNil(t, flag)
-	assert.Equal(t, "test-flag", flag.Key)
-	assert.Equal(t, types.FlagTypeBoolean, flag.Type)
-	assert.True(t, flag.Enabled)
-	mockRepo.AssertExpectations(t)
-}
 
 func TestFlagTypes_Constants(t *testing.T) {
 	assert.Equal(t, types.FlagType("boolean"), types.FlagTypeBoolean)
