@@ -5,17 +5,17 @@ import (
 	"time"
 
 	"github.com/flexflag/flexflag/internal/core/rollout"
-	"github.com/flexflag/flexflag/internal/storage/postgres"
+	"github.com/flexflag/flexflag/internal/storage"
 	"github.com/flexflag/flexflag/pkg/types"
 	"github.com/gin-gonic/gin"
 )
 
 type RolloutHandler struct {
-	rolloutRepo *postgres.RolloutRepository
+	rolloutRepo storage.RolloutRepository
 	evaluator   *rollout.Evaluator
 }
 
-func NewRolloutHandler(rolloutRepo *postgres.RolloutRepository) *RolloutHandler {
+func NewRolloutHandler(rolloutRepo storage.RolloutRepository) *RolloutHandler {
 	return &RolloutHandler{
 		rolloutRepo: rolloutRepo,
 		evaluator:   rollout.NewEvaluator(),
