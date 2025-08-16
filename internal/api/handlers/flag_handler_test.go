@@ -491,6 +491,143 @@ func TestFlagHandler_CreateFlag_InvalidJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestFlagHandler_CreateFlag_RepositoryError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockFlagRepository)
+	handler := handlers.NewFlagHandler(mockRepo, nil, nil, nil)
+
+	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*types.Flag")).Return(fmt.Errorf("database error"))
+
+	requestBody := map[string]interface{}{
+		"key":         "test-flag",
+		"name":        "Test Flag",
+		"type":        "boolean",
+		"default":     true,
+		"environment": "production",
+	}
+
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/flags", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+
+	handler.CreateFlag(c)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var response map[string]string
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "database error", response["error"])
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestFlagHandler_ListFlags_DatabaseError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockFlagRepository)
+	handler := handlers.NewFlagHandler(mockRepo, nil, nil, nil)
+
+	mockRepo.On("List", mock.Anything, "production").Return(nil, fmt.Errorf("database connection failed"))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/flags?environment=production", nil)
+	c.Request = req
+
+	handler.ListFlags(c)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var response map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "database connection failed", response["error"])
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestFlagHandler_UpdateFlag_RepositoryError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockFlagRepository)
+	handler := handlers.NewFlagHandler(mockRepo, nil, nil, nil)
+
+	existingFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "test-flag",
+		Name:        "Existing Flag",
+		Type:        types.FlagTypeBoolean,
+		Enabled:     true,
+		Default:     json.RawMessage(`true`),
+		Environment: "production",
+	}
+
+	mockRepo.On("GetByKey", mock.Anything, "test-flag", "production").Return(existingFlag, nil)
+	mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*types.Flag")).Return(fmt.Errorf("update failed"))
+
+	requestBody := map[string]interface{}{
+		"key":         "test-flag",
+		"name":        "Updated Flag",
+		"type":        "boolean",
+		"default":     false,
+		"environment": "production",
+	}
+
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = []gin.Param{{Key: "key", Value: "test-flag"}}
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/flags/test-flag", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+
+	handler.UpdateFlag(c)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var response map[string]string
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "update failed", response["error"])
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestFlagHandler_DeleteFlag_RepositoryError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockFlagRepository)
+	handler := handlers.NewFlagHandler(mockRepo, nil, nil, nil)
+
+	mockRepo.On("Delete", mock.Anything, "test-flag", "production").Return(fmt.Errorf("delete failed"))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = []gin.Param{{Key: "key", Value: "test-flag"}}
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/flags/test-flag?environment=production", nil)
+	c.Request = req
+
+	handler.DeleteFlag(c)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var response map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "flag not found", response["error"])
+
+	mockRepo.AssertExpectations(t)
+}
+
 func BenchmarkFlagHandler_GetFlag(b *testing.B) {
 	gin.SetMode(gin.TestMode)
 	
