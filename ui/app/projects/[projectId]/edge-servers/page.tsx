@@ -344,7 +344,7 @@ export default function EdgeServersPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {serversData?.servers.length === 0 ? (
+                {(!serversData?.servers || serversData?.servers.length === 0) ? (
                   <TableRow>
                     <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                       <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
