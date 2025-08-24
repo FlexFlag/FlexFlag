@@ -997,3 +997,435 @@ func TestEvaluationHandler_BatchEvaluate_WithProject(t *testing.T) {
 	
 	mockRepo.AssertExpectations(t)
 }
+
+func TestEvaluationHandler_Evaluate_PercentageRollout_Match(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	expectedFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "rollout-flag",
+		Name:        "Rollout Flag",
+		Type:        types.FlagTypeBoolean,
+		Enabled:     true,
+		Default:     json.RawMessage(`true`),
+		Environment: "production",
+	}
+	
+	percentage := 100
+	percentageRollout := &types.Rollout{
+		ID:          uuid.New().String(),
+		FlagID:      expectedFlag.ID,
+		Type:        types.RolloutTypePercentage,
+		Status:      types.RolloutStatusActive,
+		Environment: "production",
+		Config: types.AdvancedRolloutConfig{
+			Percentage: &percentage, // 100% to ensure match
+		},
+	}
+	
+	mockRepo.On("GetByKey", mock.Anything, "rollout-flag", "production").Return(expectedFlag, nil)
+	mockRolloutRepo.On("GetActiveRollouts", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{percentageRollout}, nil)
+	mockRolloutRepo.On("GetByFlag", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{percentageRollout}, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_key": "rollout-flag",
+		"user_id": "user_123",
+		"user_key": "test_user",
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate?environment=production", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.Evaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "rollout-flag", response["flag_key"])
+	assert.Equal(t, true, response["value"])
+	assert.Contains(t, []string{"rollout_match", "rollout_no_match"}, response["reason"])
+	
+	mockRepo.AssertExpectations(t)
+	mockRolloutRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_Evaluate_PercentageRollout_NoMatch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	expectedFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "rollout-no-match",
+		Name:        "Rollout No Match",
+		Type:        types.FlagTypeString,
+		Enabled:     true,
+		Default:     json.RawMessage(`"default"`),
+		Environment: "production",
+	}
+	
+	percentage := 0
+	percentageRollout := &types.Rollout{
+		ID:          uuid.New().String(),
+		FlagID:      expectedFlag.ID,
+		Type:        types.RolloutTypePercentage,
+		Status:      types.RolloutStatusActive,
+		Environment: "production",
+		Config: types.AdvancedRolloutConfig{
+			Percentage: &percentage, // 0% to ensure no match
+		},
+	}
+	
+	mockRepo.On("GetByKey", mock.Anything, "rollout-no-match", "production").Return(expectedFlag, nil)
+	mockRolloutRepo.On("GetActiveRollouts", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{percentageRollout}, nil)
+	mockRolloutRepo.On("GetByFlag", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{percentageRollout}, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_key": "rollout-no-match",
+		"user_id": "user_123",
+		"user_key": "test_user",
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate?environment=production", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.Evaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "rollout-no-match", response["flag_key"])
+	// For string flags, no match should return empty string
+	assert.Equal(t, "", response["value"])
+	assert.Equal(t, "rollout_no_match", response["reason"])
+	assert.Equal(t, true, response["default"])
+	
+	mockRepo.AssertExpectations(t)
+	mockRolloutRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_Evaluate_ExperimentRollout_WithVariation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	expectedFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "experiment-flag",
+		Name:        "Experiment Flag",
+		Type:        types.FlagTypeVariant,
+		Enabled:     true,
+		Default:     json.RawMessage(`"default"`),
+		Environment: "production",
+		Variations: []types.Variation{
+			{
+				ID:    "var_a",
+				Name:  "Variation A",
+				Value: json.RawMessage(`"variation_a"`),
+			},
+			{
+				ID:    "var_b",
+				Name:  "Variation B", 
+				Value: json.RawMessage(`"variation_b"`),
+			},
+		},
+	}
+	
+	percentage := 100
+	experimentRollout := &types.Rollout{
+		ID:          uuid.New().String(),
+		FlagID:      expectedFlag.ID,
+		Type:        types.RolloutTypeExperiment,
+		Status:      types.RolloutStatusActive,
+		Environment: "production",
+		Config: types.AdvancedRolloutConfig{
+			Percentage: &percentage,
+		},
+	}
+	
+	mockRepo.On("GetByKey", mock.Anything, "experiment-flag", "production").Return(expectedFlag, nil)
+	mockRolloutRepo.On("GetActiveRollouts", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{experimentRollout}, nil)
+	mockRolloutRepo.On("GetByFlag", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{experimentRollout}, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_key": "experiment-flag",
+		"user_id": "user_123",
+		"user_key": "test_user",
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate?environment=production", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.Evaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "experiment-flag", response["flag_key"])
+	// Should get one of the variations or default
+	assert.Contains(t, []interface{}{"variation_a", "variation_b", "default"}, response["value"])
+	
+	mockRepo.AssertExpectations(t)
+	mockRolloutRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_Evaluate_StickyAssignment_Found(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	expectedFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "sticky-flag",
+		Name:        "Sticky Flag",
+		Type:        types.FlagTypeVariant,
+		Enabled:     true,
+		Default:     json.RawMessage(`"default"`),
+		Environment: "production",
+		Variations: []types.Variation{
+			{
+				ID:    "sticky_var",
+				Name:  "Sticky Variation",
+				Value: json.RawMessage(`"sticky_value"`),
+			},
+		},
+		Targeting: &types.TargetingConfig{
+			Rollout: &types.RolloutConfig{
+				StickyBucketing: true,
+				BucketBy: "user_key",
+				Seed: 12345,
+			},
+		},
+	}
+	
+	stickyAssignment := &types.StickyAssignment{
+		ID:          uuid.New().String(),
+		FlagID:      expectedFlag.ID,
+		Environment: "production",
+		UserKey:     "sticky_user",
+		VariationID: "sticky_var",
+	}
+	
+	mockRepo.On("GetByKey", mock.Anything, "sticky-flag", "production").Return(expectedFlag, nil)
+	mockRolloutRepo.On("GetActiveRollouts", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{}, nil)
+	mockRolloutRepo.On("GetByFlag", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{}, nil)
+	mockRolloutRepo.On("GetStickyAssignment", mock.Anything, expectedFlag.ID, "production", "sticky_user").Return(stickyAssignment, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_key": "sticky-flag",
+		"user_id": "user_123",
+		"user_key": "sticky_user",
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate?environment=production", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.Evaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "sticky-flag", response["flag_key"])
+	assert.Equal(t, "sticky_value", response["value"])
+	assert.Equal(t, "sticky_assignment", response["reason"])
+	assert.Equal(t, "sticky_var", response["variation"])
+	assert.Equal(t, false, response["default"])
+	
+	mockRepo.AssertExpectations(t)
+	mockRolloutRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_Evaluate_NumberFlagType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	expectedFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "number-flag",
+		Name:        "Number Flag",
+		Type:        types.FlagTypeNumber,
+		Enabled:     true,
+		Default:     json.RawMessage(`42`),
+		Environment: "production",
+	}
+	
+	mockRepo.On("GetByKey", mock.Anything, "number-flag", "production").Return(expectedFlag, nil)
+	mockRolloutRepo.On("GetActiveRollouts", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{}, nil)
+	mockRolloutRepo.On("GetByFlag", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{}, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_key": "number-flag",
+		"user_id": "user_123",
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate?environment=production", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.Evaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "number-flag", response["flag_key"])
+	assert.Equal(t, float64(42), response["value"])
+	
+	mockRepo.AssertExpectations(t)
+	mockRolloutRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_Evaluate_JSONFlagType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	expectedFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "json-flag",
+		Name:        "JSON Flag",
+		Type:        types.FlagTypeJSON,
+		Enabled:     true,
+		Default:     json.RawMessage(`{"key":"value","number":123}`),
+		Environment: "production",
+	}
+	
+	mockRepo.On("GetByKey", mock.Anything, "json-flag", "production").Return(expectedFlag, nil)
+	mockRolloutRepo.On("GetActiveRollouts", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{}, nil)
+	mockRolloutRepo.On("GetByFlag", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{}, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_key": "json-flag",
+		"user_id": "user_123",
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate?environment=production", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.Evaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "json-flag", response["flag_key"])
+	
+	// Value should be a map representing the JSON object
+	value := response["value"].(map[string]interface{})
+	assert.Equal(t, "value", value["key"])
+	assert.Equal(t, float64(123), value["number"])
+	
+	mockRepo.AssertExpectations(t)
+	mockRolloutRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_BatchEvaluate_DisabledFlag(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	disabledFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "disabled-batch-flag",
+		Name:        "Disabled Batch Flag",
+		Type:        types.FlagTypeBoolean,
+		Enabled:     false,
+		Default:     json.RawMessage(`false`),
+		Environment: "production",
+	}
+	
+	mockRepo.On("GetByKey", mock.Anything, "disabled-batch-flag", "production").Return(disabledFlag, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_keys": []string{"disabled-batch-flag"},
+		"user_id": "user_123",
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate/batch?environment=production", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.BatchEvaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	
+	evaluations := response["evaluations"].(map[string]interface{})
+	assert.Contains(t, evaluations, "disabled-batch-flag")
+	result := evaluations["disabled-batch-flag"].(map[string]interface{})
+	assert.Equal(t, false, result["value"])
+	assert.Equal(t, "flag_disabled", result["reason"])
+	assert.Equal(t, true, result["default"])
+	
+	mockRepo.AssertExpectations(t)
+}
