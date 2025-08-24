@@ -10,7 +10,7 @@ FlexFlag is a high-performance, developer-first feature flag management system w
 
 - 🚀 **Ultra-Fast Evaluation**: <1ms flag evaluation with edge servers
 - 🌐 **Distributed Architecture**: Edge servers for global low-latency access
-- ⚡ **Real-time Sync**: WebSocket-based flag propagation to edge nodes
+- ⚡ **Real-time Sync**: SSE/WS-based flag propagation to edge nodes
 - 🎯 **Advanced Targeting**: User segments, rollouts, and A/B testing
 - 🏢 **Multi-Project Support**: Project isolation with environment management
 - 🎨 **Modern UI**: Next.js dashboard with dark mode and responsive design
