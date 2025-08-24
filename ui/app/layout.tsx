@@ -42,6 +42,7 @@ import {
   AdminPanelSettings as AdminIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
+  Storage as StorageIcon,
 } from '@mui/icons-material';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ProjectProvider } from '@/contexts/ProjectContext';
@@ -55,6 +56,7 @@ const drawerWidth = 280;
 const navigationItems = [
   { label: 'Dashboard', icon: <DashboardIcon />, href: '/' },
   { label: 'Projects', icon: <ProjectIcon />, href: '/projects' },
+  { label: 'Edge Servers', icon: <StorageIcon />, href: '/edge-servers' },
   {
     label: 'Administration',
     icon: <AdminIcon />,
