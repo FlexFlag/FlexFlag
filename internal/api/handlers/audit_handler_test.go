@@ -201,3 +201,154 @@ func TestAuditHandler_ListAuditLogsByResource_MissingParameters(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "resource_type and resource_id are required", response["error"])
 }
+
+func TestAuditHandler_ListAuditLogs_InvalidPaginationParams(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockAuditRepository)
+	handler := handlers.NewAuditHandler(mockRepo)
+
+	// Mock should still be called with default values when parsing fails
+	mockRepo.On("List", mock.Anything, "proj_123", 50, 0).Return([]*types.AuditLog{}, nil)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/audit/logs?project_id=proj_123&limit=invalid&offset=negative", nil)
+	c.Request = req
+
+	handler.ListAuditLogs(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestAuditHandler_ListAuditLogs_LimitTooHigh(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockAuditRepository)
+	handler := handlers.NewAuditHandler(mockRepo)
+
+	// Should cap limit at 50 when > 1000
+	mockRepo.On("List", mock.Anything, "proj_456", 50, 10).Return([]*types.AuditLog{}, nil)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/audit/logs?project_id=proj_456&limit=5000&offset=10", nil)
+	c.Request = req
+
+	handler.ListAuditLogs(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestAuditHandler_ListAuditLogs_DatabaseError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockAuditRepository)
+	handler := handlers.NewAuditHandler(mockRepo)
+
+	mockRepo.On("List", mock.Anything, "proj_123", 25, 0).Return(nil, assert.AnError)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/audit/logs?project_id=proj_123&limit=25", nil)
+	c.Request = req
+
+	handler.ListAuditLogs(c)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	
+	var response map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response["error"], "assert.AnError")
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestAuditHandler_ListAuditLogsByResource_InvalidPaginationParams(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockAuditRepository)
+	handler := handlers.NewAuditHandler(mockRepo)
+
+	// Should use defaults when parsing fails
+	mockRepo.On("ListByResource", mock.Anything, "flag", "flag_123", 50, 0).Return([]*types.AuditLog{}, nil)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/audit/logs/resource?resource_type=flag&resource_id=flag_123&limit=abc&offset=-5", nil)
+	c.Request = req
+
+	handler.ListAuditLogsByResource(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestAuditHandler_ListAuditLogsByResource_LimitTooHigh(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockAuditRepository)
+	handler := handlers.NewAuditHandler(mockRepo)
+
+	// Should cap limit at 50 when > 1000  
+	mockRepo.On("ListByResource", mock.Anything, "project", "proj_789", 50, 20).Return([]*types.AuditLog{}, nil)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/audit/logs/resource?resource_type=project&resource_id=proj_789&limit=2000&offset=20", nil)
+	c.Request = req
+
+	handler.ListAuditLogsByResource(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestAuditHandler_ListAuditLogsByResource_DatabaseError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockAuditRepository)
+	handler := handlers.NewAuditHandler(mockRepo)
+
+	mockRepo.On("ListByResource", mock.Anything, "segment", "seg_456", 30, 5).Return(nil, assert.AnError)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/audit/logs/resource?resource_type=segment&resource_id=seg_456&limit=30&offset=5", nil)
+	c.Request = req
+
+	handler.ListAuditLogsByResource(c)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var response map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response["error"], "assert.AnError")
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestAuditHandler_ListAuditLogsByResource_MissingResourceType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockAuditRepository)
+	handler := handlers.NewAuditHandler(mockRepo)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/audit/logs/resource?resource_id=some_id", nil) // Missing resource_type
+	c.Request = req
+
+	handler.ListAuditLogsByResource(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "resource_type and resource_id are required", response["error"])
+}
