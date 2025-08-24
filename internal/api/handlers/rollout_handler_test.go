@@ -100,7 +100,6 @@ func TestRolloutHandler_GetRollout_Success(t *testing.T) {
 		Name:        "Test Rollout",
 		Description: "A test rollout",
 		Status:      "active",
-		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
 
@@ -443,6 +442,220 @@ func TestRolloutHandler_CompleteRollout_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rolloutID, response["id"])
 	assert.Equal(t, "completed", response["status"])
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestRolloutHandler_GetAllRollouts_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockRolloutRepository)
+	handler := handlers.NewRolloutHandler(mockRepo)
+
+	expectedRollouts := []*types.Rollout{
+		{
+			ID:          uuid.New().String(),
+			Name:        "Rollout 1",
+			FlagID:      "flag_1",
+			Environment: "production",
+			Status:      types.RolloutStatusActive,
+		},
+		{
+			ID:          uuid.New().String(),
+			Name:        "Rollout 2", 
+			FlagID:      "flag_2",
+			Environment: "production",
+			Status:      types.RolloutStatusPaused,
+		},
+	}
+
+	mockRepo.On("GetByProject", mock.Anything, "proj_123", "production").Return(expectedRollouts, nil)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/rollouts?project_id=proj_123&environment=production", nil)
+	c.Request = req
+
+	handler.GetAllRollouts(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response, "rollouts")
+
+	rollouts := response["rollouts"].([]interface{})
+	assert.Len(t, rollouts, 2)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestRolloutHandler_GetAllRollouts_MissingProjectID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockRolloutRepository)
+	handler := handlers.NewRolloutHandler(mockRepo)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/rollouts", nil)
+	c.Request = req
+
+	handler.GetAllRollouts(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "project_id is required", response["error"])
+}
+
+func TestRolloutHandler_GetStickyAssignments_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockRolloutRepository)
+	handler := handlers.NewRolloutHandler(mockRepo)
+
+	expectedAssignment := &types.StickyAssignment{
+		FlagID:      "flag_123",
+		Environment: "production",
+		UserKey:     "user_123",
+		VariationID: "var_1",
+	}
+
+	mockRepo.On("GetStickyAssignment", mock.Anything, "flag_123", "production", "user_123").Return(expectedAssignment, nil)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/rollouts/sticky?flag_id=flag_123&environment=production&user_key=user_123", nil)
+	c.Request = req
+
+	handler.GetStickyAssignments(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response types.StickyAssignment
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "flag_123", response.FlagID)
+	assert.Equal(t, "user_123", response.UserKey)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestRolloutHandler_GetStickyAssignments_AllAssignments(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockRolloutRepository)
+	handler := handlers.NewRolloutHandler(mockRepo)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/rollouts/sticky?flag_id=flag_123", nil)
+	c.Request = req
+
+	handler.GetStickyAssignments(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response, "assignments")
+	assignments := response["assignments"].([]interface{})
+	assert.Len(t, assignments, 0)
+}
+
+func TestRolloutHandler_GetStickyAssignments_MissingFlagID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockRolloutRepository)
+	handler := handlers.NewRolloutHandler(mockRepo)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/rollouts/sticky", nil)
+	c.Request = req
+
+	handler.GetStickyAssignments(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "flag_id is required", response["error"])
+}
+
+func TestRolloutHandler_DeleteStickyAssignment_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockRolloutRepository)
+	handler := handlers.NewRolloutHandler(mockRepo)
+
+	mockRepo.On("DeleteStickyAssignment", mock.Anything, "flag_123", "production", "user_123").Return(nil)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodDelete, "/rollouts/sticky?flag_id=flag_123&environment=production&user_key=user_123", nil)
+	c.Request = req
+
+	handler.DeleteStickyAssignment(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "Sticky assignment deleted successfully", response["message"])
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestRolloutHandler_DeleteStickyAssignment_MissingParams(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockRolloutRepository)
+	handler := handlers.NewRolloutHandler(mockRepo)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodDelete, "/rollouts/sticky?flag_id=flag_123", nil)
+	c.Request = req
+
+	handler.DeleteStickyAssignment(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "flag_id and user_key are required", response["error"])
+}
+
+func TestRolloutHandler_CleanupExpiredAssignments_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockRolloutRepository)
+	handler := handlers.NewRolloutHandler(mockRepo)
+
+	mockRepo.On("CleanupExpiredAssignments", mock.Anything).Return(nil)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/rollouts/cleanup", nil)
+	c.Request = req
+
+	handler.CleanupExpiredAssignments(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "Expired assignments cleaned up successfully", response["message"])
 
 	mockRepo.AssertExpectations(t)
 }
