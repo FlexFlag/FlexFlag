@@ -18,6 +18,7 @@ type Config struct {
 
 // SyncConfig contains synchronization settings
 type SyncConfig struct {
+	Type              string        `json:"type"`              // "websocket" or "sse"
 	ReconnectInterval time.Duration `json:"reconnect_interval"`
 	HeartbeatInterval time.Duration `json:"heartbeat_interval"`
 	MaxRetries        int           `json:"max_retries"`
@@ -51,6 +52,7 @@ func LoadConfig() *Config {
 			EnableMetrics:   getEnv("FLEXFLAG_EDGE_ENABLE_METRICS", "true") == "true",
 		},
 		SyncConfig: SyncConfig{
+			Type:              getEnv("FLEXFLAG_EDGE_SYNC_TYPE", "websocket"),
 			ReconnectInterval: reconnectInterval,
 			HeartbeatInterval: heartbeatInterval,
 			MaxRetries:        maxRetries,
