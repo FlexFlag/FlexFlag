@@ -678,7 +678,7 @@ FlexFlag uses a modern, distributed architecture:
 │                     Main FlexFlag Server                        │
 │                        (Port 8080)                              │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐│
-│  │   REST API  │ │ WebSocket   │ │   Auth      │ │  Sync       ││
+│  │   REST API  │ │    SSE/WS   │ │   Auth      │ │  Sync       ││
 │  │   Handlers  │ │   Handler   │ │  Service    │ │  Service    ││
 │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘│
 └─────────────────────────────────────────────────────────────────┘
