@@ -639,3 +639,361 @@ func TestEvaluationHandler_BatchEvaluate_InvalidRequest(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, response["error"], "FlagKeys")
 }
+
+func TestEvaluationHandler_Evaluate_DatabaseError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	// Mock database error
+	mockRepo.On("GetByKey", mock.Anything, "test-flag", "production").Return(nil, fmt.Errorf("database connection failed"))
+	
+	requestBody := map[string]interface{}{
+		"flag_key": "test-flag",
+		"user_id": "user_123",
+		"attributes": map[string]interface{}{
+			"country": "US",
+		},
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate?environment=production", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.Evaluate(c)
+	
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	
+	var response map[string]string
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "flag not found", response["error"])
+	
+	mockRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_Evaluate_WithProject(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	expectedFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "project-flag",
+		Name:        "Project Flag",
+		Type:        types.FlagTypeBoolean,
+		Enabled:     true,
+		Default:     json.RawMessage(`true`),
+		Environment: "production",
+		ProjectID:   "proj_123",
+	}
+	
+	mockRepo.On("GetByProjectKey", mock.Anything, "proj_123", "project-flag", "production").Return(expectedFlag, nil)
+	mockRolloutRepo.On("GetActiveRollouts", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{}, nil)
+	mockRolloutRepo.On("GetByFlag", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{}, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_key": "project-flag",
+		"user_id": "user_123",
+		"attributes": map[string]interface{}{
+			"country": "US",
+		},
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate?environment=production&project_id=proj_123", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.Evaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "project-flag", response["flag_key"])
+	assert.Equal(t, true, response["value"])
+	
+	mockRepo.AssertExpectations(t)
+	mockRolloutRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_BatchEvaluate_DatabaseError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	// Mock database error for first flag
+	mockRepo.On("GetByKey", mock.Anything, "flag-1", "production").Return(nil, fmt.Errorf("database error"))
+	
+	requestBody := map[string]interface{}{
+		"flag_keys": []string{"flag-1"},
+		"user_id": "user_123",
+		"attributes": map[string]interface{}{
+			"country": "US",
+		},
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate/batch?environment=production", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.BatchEvaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	
+	evaluations := response["evaluations"].(map[string]interface{})
+	assert.Contains(t, evaluations, "flag-1")
+	result := evaluations["flag-1"].(map[string]interface{})
+	assert.Equal(t, "flag not found", result["error"])
+	
+	mockRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_Evaluate_RolloutError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	expectedFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "test-flag",
+		Name:        "Test Flag",
+		Type:        types.FlagTypeBoolean,
+		Enabled:     true,
+		Default:     json.RawMessage(`true`),
+		Environment: "production",
+	}
+	
+	mockRepo.On("GetByKey", mock.Anything, "test-flag", "production").Return(expectedFlag, nil)
+	mockRolloutRepo.On("GetActiveRollouts", mock.Anything, expectedFlag.ID, "production").Return(nil, fmt.Errorf("rollout database error"))
+	mockRolloutRepo.On("GetByFlag", mock.Anything, expectedFlag.ID, "production").Return([]*types.Rollout{}, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_key": "test-flag",
+		"user_id": "user_123",
+		"attributes": map[string]interface{}{
+			"country": "US",
+		},
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate?environment=production", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.Evaluate(c)
+	
+	// Should still return OK and use default flag value despite rollout error
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "test-flag", response["flag_key"])
+	assert.Equal(t, true, response["value"])
+	
+	mockRepo.AssertExpectations(t)
+	mockRolloutRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_Evaluate_WithAPIKeyAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	expectedFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "api-flag",
+		Name:        "API Flag",
+		Type:        types.FlagTypeBoolean,
+		Enabled:     true,
+		Default:     json.RawMessage(`true`),
+		Environment: "staging",
+		ProjectID:   "api_proj_123",
+	}
+	
+	mockRepo.On("GetByProjectKey", mock.Anything, "api_proj_123", "api-flag", "staging").Return(expectedFlag, nil)
+	mockRolloutRepo.On("GetActiveRollouts", mock.Anything, expectedFlag.ID, "staging").Return([]*types.Rollout{}, nil)
+	mockRolloutRepo.On("GetByFlag", mock.Anything, expectedFlag.ID, "staging").Return([]*types.Rollout{}, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_key": "api-flag",
+		"user_id": "user_123",
+		"attributes": map[string]interface{}{
+			"country": "US",
+		},
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	// Simulate API key authentication middleware setting context values
+	c.Set("environment", "staging")
+	c.Set("projectID", "api_proj_123")
+	
+	handler.Evaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "api-flag", response["flag_key"])
+	assert.Equal(t, true, response["value"])
+	
+	mockRepo.AssertExpectations(t)
+	mockRolloutRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_BatchEvaluate_WithAPIKeyAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	expectedFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "batch-flag",
+		Name:        "Batch Flag",
+		Type:        types.FlagTypeBoolean,
+		Enabled:     true,
+		Default:     json.RawMessage(`true`),
+		Environment: "staging",
+		ProjectID:   "batch_proj_123",
+	}
+	
+	mockRepo.On("GetByProjectKey", mock.Anything, "batch_proj_123", "batch-flag", "staging").Return(expectedFlag, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_keys": []string{"batch-flag"},
+		"user_id": "user_123",
+		"attributes": map[string]interface{}{
+			"country": "US",
+		},
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate/batch", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	// Simulate API key authentication middleware setting context values
+	c.Set("environment", "staging")
+	c.Set("projectID", "batch_proj_123")
+	
+	handler.BatchEvaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	
+	evaluations := response["evaluations"].(map[string]interface{})
+	assert.Contains(t, evaluations, "batch-flag")
+	result := evaluations["batch-flag"].(map[string]interface{})
+	assert.Equal(t, true, result["value"])
+	
+	mockRepo.AssertExpectations(t)
+}
+
+func TestEvaluationHandler_BatchEvaluate_WithProject(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockEvalFlagRepository)
+	mockRolloutRepo := new(MockRolloutRepository)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	
+	expectedFlag := &types.Flag{
+		ID:          uuid.New().String(),
+		Key:         "project-batch-flag",
+		Name:        "Project Batch Flag",
+		Type:        types.FlagTypeString,
+		Enabled:     true,
+		Default:     json.RawMessage(`"default"`),
+		Environment: "production",
+		ProjectID:   "proj_456",
+	}
+	
+	mockRepo.On("GetByProjectKey", mock.Anything, "proj_456", "project-batch-flag", "production").Return(expectedFlag, nil)
+	
+	requestBody := map[string]interface{}{
+		"flag_keys": []string{"project-batch-flag"},
+		"user_id": "user_456",
+		"attributes": map[string]interface{}{
+			"tier": "premium",
+		},
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate/batch?project_id=proj_456&environment=production", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.BatchEvaluate(c)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	
+	evaluations := response["evaluations"].(map[string]interface{})
+	assert.Contains(t, evaluations, "project-batch-flag")
+	result := evaluations["project-batch-flag"].(map[string]interface{})
+	assert.Equal(t, "default", result["value"])
+	
+	assert.Contains(t, response, "total_time_ms")
+	assert.Contains(t, response, "avg_time_per_flag_ms")
+	
+	mockRepo.AssertExpectations(t)
+}
