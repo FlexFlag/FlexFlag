@@ -95,8 +95,10 @@ func main() {
 	// Initialize handlers
 	ultraFastHandler := handlers.NewUltraFastHandler(flagRepo)
 	edgeSyncHandler := handlers.NewEdgeSyncHandler(flagRepo, apiKeyRepo)
+	sseHandler := handlers.NewSSEHandler()
 	flagHandler := handlers.NewFlagHandler(flagRepo, auditService, ultraFastHandler, projectRepo)
 	flagHandler.SetEdgeSyncHandler(edgeSyncHandler)
+	flagHandler.SetSSEHandler(sseHandler)
 	authHandler := handlers.NewAuthHandler(userRepo, jwtManager)
 	projectHandler := handlers.NewProjectHandler(projectRepo, flagRepo, segmentRepo, rolloutRepo)
 	segmentHandler := handlers.NewSegmentHandler(segmentRepo)
@@ -263,8 +265,9 @@ func main() {
 		{
 			edge.GET("/sync", edgeSyncHandler.BulkSync)
 			edge.GET("/sync/ws", edgeSyncHandler.WebSocketSync)
+			edge.GET("/sync/sse", sseHandler.HandleSSE)
 			edge.POST("/auth", edgeSyncHandler.AuthenticateAPIKey)
-			edge.GET("/servers", auth.AuthMiddleware(jwtManager), edgeSyncHandler.GetEdgeServersStatus)
+			edge.GET("/servers", auth.AuthMiddleware(jwtManager), sseHandler.HandleEdgeServerStatus)
 		}
 	}
 
