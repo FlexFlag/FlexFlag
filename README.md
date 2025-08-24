@@ -668,13 +668,12 @@ FlexFlag uses a modern, distributed architecture:
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Next.js UI   │    │  Edge Server    │    │  Edge Server    │
-│  (Port 3000)   │    │  (Port 8081)   │    │  (Port 8082)   │
+│   Next.js UI    │    │  Edge Server    │    │  Edge Server    │
+│  (Port 3000)    │    │  (Port 8081)    │    │  (Port 8082)    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
-         │              WebSocket│              WebSocket│
+         │          SSE/WebSocket│          SSE/WebSocket│
          │                       │                       │
-         ▼                       ▼                       ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Main FlexFlag Server                        │
 │                        (Port 8080)                              │
@@ -686,7 +685,7 @@ FlexFlag uses a modern, distributed architecture:
                                    │
                                    ▼
          ┌─────────────────────────────────────────────────────────┐
-         │                Infrastructure                            │
+         │                Infrastructure                           │
          │  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐│
          │  │ PostgreSQL  │     │    Redis    │     │   Docker    ││
          │  │ (Port 5433) │     │ (Port 6379) │     │  Compose    ││
