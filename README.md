@@ -19,61 +19,77 @@ FlexFlag is a high-performance, developer-first feature flag management system w
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### ⚡ Single Command Setup (Recommended)
+
+**Get FlexFlag running in 30 seconds:**
+
+```bash
+# Clone and run everything with one command
+git clone https://github.com/flexflag/flexflag.git
+cd flexflag
+./run-dev.sh
+```
+
+🎉 **That's it!** FlexFlag will automatically:
+- ✅ Install dependencies and build the application
+- ✅ Start PostgreSQL and Redis via Docker
+- ✅ Run database migrations
+- ✅ Launch API server (port 8080), UI (port 3000), and Edge server (port 8083)
+- ✅ Display all URLs and login credentials
+
+**Default login:** `admin@example.com` / `secret`
+
+---
+
+### 🛠️ Manual Setup (For Advanced Users)
+
+<details>
+<summary>Click to expand manual setup instructions</summary>
+
+#### Prerequisites
 
 Ensure you have the following installed:
 
 - **Go 1.21+** - [Download Go](https://go.dev/dl/)
 - **Node.js 18.17+** - [Download Node.js](https://nodejs.org/)
 - **Docker & Docker Compose** - [Install Docker](https://docs.docker.com/get-docker/)
-- **PostgreSQL 15+** (via Docker or local install)
-- **Redis 7+** (via Docker or local install)
 
-### Step 1: Clone and Setup
+#### Step 1: Clone and Setup
 
 ```bash
 # Clone the repository
 git clone https://github.com/flexflag/flexflag.git
 cd flexflag
 
-# Install Go dependencies
-go mod download
-
-# Install development tools
-make install-tools
+# Automated setup (recommended)
+./setup-dev.sh
 ```
 
-### Step 2: Start Infrastructure Services
+#### Step 2: Start Services Manually
 
 ```bash
-# Start PostgreSQL and Redis with Docker Compose
+# Start infrastructure
 docker-compose up -d
 
-# Wait for services to be ready (about 10-15 seconds)
-docker-compose ps
-```
-
-### Step 3: Initialize Database
-
-```bash
-# Run database migrations
-make migrate-up
-
-# Verify migration success
-echo "Database migration completed successfully"
-```
-
-### Step 4: Start the Backend Server
-
-```bash
-# Start the main FlexFlag server (runs on port 8080)
+# Start API server
 make run
 
-# Or for development with hot reload:
-# make dev
+# Start UI (in another terminal)
+cd ui && npm run dev
+
+FLEXFLAG_EDGE_SYNC_TYPE=sse ./bin/edge-server
 ```
 
-### Step 5: Start the Frontend UI
+**Service URLs:**
+- 🎨 UI Dashboard: http://localhost:3000
+- 🔧 API Server: http://localhost:8080  
+- ⚡ Edge Server: http://localhost:8083
+
+</details>
+
+---
+
+## 🏗️ Development Commands
 
 ```bash
 # In a new terminal, navigate to the UI directory
