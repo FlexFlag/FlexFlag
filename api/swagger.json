@@ -1,0 +1,745 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "A high-performance feature flag management system with project-based multi-tenancy",
+        "title": "FlexFlag API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "FlexFlag Support",
+            "url": "http://www.flexflag.com/support",
+            "email": "support@flexflag.com"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "http://opensource.org/licenses/MIT"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api/v1",
+    "paths": {
+        "/auth/register": {
+            "post": {
+                "description": "Create a new user account",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Register a new user",
+                "parameters": [
+                    {
+                        "description": "User registration request",
+                        "name": "user",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/types.CreateUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "User created successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluate": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Evaluate a feature flag for a user with given attributes",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evaluation"
+                ],
+                "summary": "Evaluate a feature flag",
+                "parameters": [
+                    {
+                        "description": "Evaluation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.EvaluateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.EvaluateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/flags": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "List all feature flags for an environment, optionally filtered by project",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "flags"
+                ],
+                "summary": "List flags",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "production",
+                        "description": "Environment",
+                        "name": "environment",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Project ID to filter by",
+                        "name": "project_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Response with flags array",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Create a new feature flag with specified configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "flags"
+                ],
+                "summary": "Create a new flag",
+                "parameters": [
+                    {
+                        "description": "Flag creation request",
+                        "name": "flag",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CreateFlagRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created flag",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/flags/{key}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get a feature flag by its key and environment",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "flags"
+                ],
+                "summary": "Get a flag by key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Flag key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "production",
+                        "description": "Environment",
+                        "name": "environment",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Flag details",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/projects": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "List all projects with pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "List projects",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Number of projects to return",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Number of projects to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Response with projects array",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Create a new project with specified configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Create a new project",
+                "parameters": [
+                    {
+                        "description": "Project creation request",
+                        "name": "project",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/types.CreateProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created project",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "handlers.CreateFlagRequest": {
+            "type": "object",
+            "required": [
+                "default",
+                "key",
+                "name",
+                "type"
+            ],
+            "properties": {
+                "default": {
+                    "type": "object"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Description of the feature"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "environment": {
+                    "type": "string",
+                    "example": "production"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "feature-toggle"
+                },
+                "metadata": {
+                    "type": "object"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Feature Toggle"
+                },
+                "project_id": {
+                    "type": "string",
+                    "example": "proj_123"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "feature",
+                        "toggle"
+                    ]
+                },
+                "targeting": {
+                    "$ref": "#/definitions/types.TargetingConfig"
+                },
+                "type": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.FlagType"
+                        }
+                    ],
+                    "example": "boolean"
+                },
+                "variations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.SwaggerVariation"
+                    }
+                }
+            }
+        },
+        "handlers.EvaluateRequest": {
+            "type": "object",
+            "required": [
+                "flag_key"
+            ],
+            "properties": {
+                "attributes": {
+                    "type": "object"
+                },
+                "flag_key": {
+                    "type": "string",
+                    "example": "feature-toggle"
+                },
+                "user_id": {
+                    "type": "string",
+                    "example": "user_123"
+                },
+                "user_key": {
+                    "type": "string",
+                    "example": "user_key_456"
+                }
+            }
+        },
+        "handlers.EvaluateResponse": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "evaluation_time_ms": {
+                    "type": "number",
+                    "example": 1.234
+                },
+                "flag_key": {
+                    "type": "string",
+                    "example": "feature-toggle"
+                },
+                "reason": {
+                    "type": "string",
+                    "example": "RULE_MATCH"
+                },
+                "rule_id": {
+                    "type": "string",
+                    "example": "rule_123"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "object"
+                },
+                "variation": {
+                    "type": "string",
+                    "example": "variation_a"
+                }
+            }
+        },
+        "handlers.SwaggerVariation": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "First variation"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "var_1"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Variation A"
+                },
+                "value": {
+                    "type": "object"
+                },
+                "weight": {
+                    "type": "integer",
+                    "example": 50
+                }
+            }
+        },
+        "types.CreateProjectRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "slug"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "settings": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.CreateUserRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "full_name",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "full_name": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 8
+                },
+                "role": {
+                    "$ref": "#/definitions/types.UserRole"
+                }
+            }
+        },
+        "types.FlagType": {
+            "type": "string",
+            "enum": [
+                "boolean",
+                "string",
+                "number",
+                "json",
+                "variant"
+            ],
+            "x-enum-comments": {
+                "FlagTypeVariant": "A/B testing with multiple variants"
+            },
+            "x-enum-descriptions": [
+                "",
+                "",
+                "",
+                "",
+                "A/B testing with multiple variants"
+            ],
+            "x-enum-varnames": [
+                "FlagTypeBoolean",
+                "FlagTypeString",
+                "FlagTypeNumber",
+                "FlagTypeJSON",
+                "FlagTypeVariant"
+            ]
+        },
+        "types.RolloutConfig": {
+            "type": "object",
+            "properties": {
+                "bucket_by": {
+                    "type": "string"
+                },
+                "seed": {
+                    "type": "integer"
+                },
+                "sticky_bucketing": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "variations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.VariationRollout"
+                    }
+                }
+            }
+        },
+        "types.TargetingConfig": {
+            "type": "object",
+            "properties": {
+                "rollout": {
+                    "$ref": "#/definitions/types.RolloutConfig"
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.TargetingRule"
+                    }
+                },
+                "segments": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "types.TargetingRule": {
+            "type": "object",
+            "properties": {
+                "attribute": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "operator": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "variation": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.UserRole": {
+            "type": "string",
+            "enum": [
+                "admin",
+                "editor",
+                "viewer"
+            ],
+            "x-enum-varnames": [
+                "UserRoleAdmin",
+                "UserRoleEditor",
+                "UserRoleViewer"
+            ]
+        },
+        "types.VariationRollout": {
+            "type": "object",
+            "properties": {
+                "variation_id": {
+                    "type": "string"
+                },
+                "weight": {
+                    "type": "integer"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "description": "Bearer token authentication",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        },
+        "ApiKeyHeader": {
+            "description": "API Key authentication",
+            "type": "apiKey",
+            "name": "X-API-Key",
+            "in": "header"
+        }
+    }
+}

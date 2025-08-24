@@ -1,0 +1,503 @@
+basePath: /api/v1
+definitions:
+  handlers.CreateFlagRequest:
+    properties:
+      default:
+        type: object
+      description:
+        example: Description of the feature
+        type: string
+      enabled:
+        example: true
+        type: boolean
+      environment:
+        example: production
+        type: string
+      key:
+        example: feature-toggle
+        type: string
+      metadata:
+        type: object
+      name:
+        example: Feature Toggle
+        type: string
+      project_id:
+        example: proj_123
+        type: string
+      tags:
+        example:
+        - feature
+        - toggle
+        items:
+          type: string
+        type: array
+      targeting:
+        $ref: '#/definitions/types.TargetingConfig'
+      type:
+        allOf:
+        - $ref: '#/definitions/types.FlagType'
+        example: boolean
+      variations:
+        items:
+          $ref: '#/definitions/handlers.SwaggerVariation'
+        type: array
+    required:
+    - default
+    - key
+    - name
+    - type
+    type: object
+  handlers.EvaluateRequest:
+    properties:
+      attributes:
+        type: object
+      flag_key:
+        example: feature-toggle
+        type: string
+      user_id:
+        example: user_123
+        type: string
+      user_key:
+        example: user_key_456
+        type: string
+    required:
+    - flag_key
+    type: object
+  handlers.EvaluateResponse:
+    properties:
+      default:
+        example: false
+        type: boolean
+      evaluation_time_ms:
+        example: 1.234
+        type: number
+      flag_key:
+        example: feature-toggle
+        type: string
+      reason:
+        example: RULE_MATCH
+        type: string
+      rule_id:
+        example: rule_123
+        type: string
+      timestamp:
+        type: string
+      value:
+        type: object
+      variation:
+        example: variation_a
+        type: string
+    type: object
+  handlers.SwaggerVariation:
+    properties:
+      description:
+        example: First variation
+        type: string
+      id:
+        example: var_1
+        type: string
+      name:
+        example: Variation A
+        type: string
+      value:
+        type: object
+      weight:
+        example: 50
+        type: integer
+    type: object
+  types.CreateProjectRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      settings:
+        additionalProperties: true
+        type: object
+      slug:
+        type: string
+    required:
+    - name
+    - slug
+    type: object
+  types.CreateUserRequest:
+    properties:
+      email:
+        type: string
+      full_name:
+        type: string
+      password:
+        minLength: 8
+        type: string
+      role:
+        $ref: '#/definitions/types.UserRole'
+    required:
+    - email
+    - full_name
+    - password
+    type: object
+  types.FlagType:
+    enum:
+    - boolean
+    - string
+    - number
+    - json
+    - variant
+    type: string
+    x-enum-comments:
+      FlagTypeVariant: A/B testing with multiple variants
+    x-enum-descriptions:
+    - ""
+    - ""
+    - ""
+    - ""
+    - A/B testing with multiple variants
+    x-enum-varnames:
+    - FlagTypeBoolean
+    - FlagTypeString
+    - FlagTypeNumber
+    - FlagTypeJSON
+    - FlagTypeVariant
+  types.RolloutConfig:
+    properties:
+      bucket_by:
+        type: string
+      seed:
+        type: integer
+      sticky_bucketing:
+        type: boolean
+      type:
+        type: string
+      variations:
+        items:
+          $ref: '#/definitions/types.VariationRollout'
+        type: array
+    type: object
+  types.TargetingConfig:
+    properties:
+      rollout:
+        $ref: '#/definitions/types.RolloutConfig'
+      rules:
+        items:
+          $ref: '#/definitions/types.TargetingRule'
+        type: array
+      segments:
+        items:
+          type: string
+        type: array
+    type: object
+  types.TargetingRule:
+    properties:
+      attribute:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      operator:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
+      variation:
+        type: string
+    type: object
+  types.UserRole:
+    enum:
+    - admin
+    - editor
+    - viewer
+    type: string
+    x-enum-varnames:
+    - UserRoleAdmin
+    - UserRoleEditor
+    - UserRoleViewer
+  types.VariationRollout:
+    properties:
+      variation_id:
+        type: string
+      weight:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@flexflag.com
+    name: FlexFlag Support
+    url: http://www.flexflag.com/support
+  description: A high-performance feature flag management system with project-based
+    multi-tenancy
+  license:
+    name: MIT
+    url: http://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: FlexFlag API
+  version: "1.0"
+paths:
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account
+      parameters:
+      - description: User registration request
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/types.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new user
+      tags:
+      - auth
+  /evaluate:
+    post:
+      consumes:
+      - application/json
+      description: Evaluate a feature flag for a user with given attributes
+      parameters:
+      - description: Evaluation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.EvaluateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.EvaluateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Evaluate a feature flag
+      tags:
+      - evaluation
+  /flags:
+    get:
+      description: List all feature flags for an environment, optionally filtered
+        by project
+      parameters:
+      - default: production
+        description: Environment
+        in: query
+        name: environment
+        type: string
+      - description: Project ID to filter by
+        in: query
+        name: project_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response with flags array
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: List flags
+      tags:
+      - flags
+    post:
+      consumes:
+      - application/json
+      description: Create a new feature flag with specified configuration
+      parameters:
+      - description: Flag creation request
+        in: body
+        name: flag
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateFlagRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created flag
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new flag
+      tags:
+      - flags
+  /flags/{key}:
+    get:
+      description: Get a feature flag by its key and environment
+      parameters:
+      - description: Flag key
+        in: path
+        name: key
+        required: true
+        type: string
+      - default: production
+        description: Environment
+        in: query
+        name: environment
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Flag details
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get a flag by key
+      tags:
+      - flags
+  /projects:
+    get:
+      description: List all projects with pagination
+      parameters:
+      - default: 20
+        description: Number of projects to return
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Number of projects to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response with projects array
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: List projects
+      tags:
+      - projects
+    post:
+      consumes:
+      - application/json
+      description: Create a new project with specified configuration
+      parameters:
+      - description: Project creation request
+        in: body
+        name: project
+        required: true
+        schema:
+          $ref: '#/definitions/types.CreateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created project
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new project
+      tags:
+      - projects
+securityDefinitions:
+  ApiKeyAuth:
+    description: Bearer token authentication
+    in: header
+    name: Authorization
+    type: apiKey
+  ApiKeyHeader:
+    description: API Key authentication
+    in: header
+    name: X-API-Key
+    type: apiKey
+swagger: "2.0"
