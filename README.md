@@ -51,7 +51,7 @@ cd flexflag
 Ensure you have the following installed:
 
 - **Go 1.21+** - [Download Go](https://go.dev/dl/)
-- **Node.js 18.17+** - [Download Node.js](https://nodejs.org/)
+- **Node.js 18.17+** - [Download Node.js](https://nodejs.org/) *(Next.js requirement)*
 - **Docker & Docker Compose** - [Install Docker](https://docs.docker.com/get-docker/)
 
 #### Step 1: Clone and Setup

@@ -64,8 +64,19 @@ fi
 
 # Check Node.js
 if ! command -v node &> /dev/null; then
-    print_error "Node.js is not installed. Please install Node.js 18+ first."
+    print_error "Node.js is not installed. Please install Node.js 18.17+ first."
     exit 1
+else
+    # Check Node.js version - Next.js requires >= v18.17.0
+    NODE_VERSION=$(node -v | sed 's/v//')
+    NODE_MAJOR=$(echo $NODE_VERSION | cut -d. -f1)
+    NODE_MINOR=$(echo $NODE_VERSION | cut -d. -f2)
+    
+    if [ "$NODE_MAJOR" -lt 18 ] || ([ "$NODE_MAJOR" -eq 18 ] && [ "$NODE_MINOR" -lt 17 ]); then
+        print_error "Node.js version $NODE_VERSION is installed, but Next.js requires >= v18.17.0"
+        print_error "Please upgrade Node.js: https://nodejs.org/"
+        exit 1
+    fi
 fi
 
 print_success "All required tools are installed!"

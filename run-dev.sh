@@ -96,6 +96,19 @@ fi
 
 if ! command -v node &> /dev/null; then
     MISSING_TOOLS+="node "
+else
+    # Check Node.js version - Next.js requires >= v18.17.0
+    NODE_VERSION=$(node -v | sed 's/v//')
+    NODE_MAJOR=$(echo $NODE_VERSION | cut -d. -f1)
+    NODE_MINOR=$(echo $NODE_VERSION | cut -d. -f2)
+    
+    if [ "$NODE_MAJOR" -lt 18 ] || ([ "$NODE_MAJOR" -eq 18 ] && [ "$NODE_MINOR" -lt 17 ]); then
+        print_error "Node.js version $NODE_VERSION detected. Next.js requires >= v18.17.0"
+        print_error "Please upgrade Node.js: brew install node"
+        exit 1
+    else
+        print_success "Node.js version $NODE_VERSION detected"
+    fi
 fi
 
 if ! command -v make &> /dev/null; then

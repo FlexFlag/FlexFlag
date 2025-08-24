@@ -8,6 +8,8 @@ This document provides a comprehensive reference for all FlexFlag environment va
 2. Run `./setup-dev.sh` for automated development setup
 3. Or manually configure the variables below
 
+**Prerequisites:** Go 1.21+, Node.js 18.17+, Docker & Docker Compose
+
 ## Variable Categories
 
 ### 🚀 Core Server Configuration
