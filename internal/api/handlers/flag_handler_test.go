@@ -628,6 +628,171 @@ func TestFlagHandler_DeleteFlag_RepositoryError(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
+// Additional CreateFlag tests for better coverage
+
+func TestFlagHandler_CreateFlag_WithVariationsAndTargeting(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockFlagRepository)
+	handler := handlers.NewFlagHandler(mockRepo, nil, nil, nil)
+	
+	// Mock successful creation for all default environments
+	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*types.Flag")).Return(nil).Times(3)
+	
+	requestBody := map[string]interface{}{
+		"key":         "variant-flag",
+		"name":        "Variant Flag",
+		"type":        "variant",
+		"enabled":     true,
+		"default":     "default",
+		"project_id":  "proj_123",
+		"tags":        []string{"experiment", "variant"},
+		"metadata": map[string]interface{}{
+			"experiment_id": "exp_123",
+			"owner":         "team_a",
+		},
+		"variations": []map[string]interface{}{
+			{
+				"id":          "var_a",
+				"name":        "Variation A",
+				"description": "First variation",
+				"value":       "variation_a",
+				"weight":      50,
+			},
+			{
+				"id":          "var_b",
+				"name":        "Variation B",
+				"description": "Second variation",
+				"value":       "variation_b",
+				"weight":      50,
+			},
+		},
+		"targeting": map[string]interface{}{
+			"rules": []map[string]interface{}{
+				{
+					"id":          "rule_1",
+					"attribute":   "country",
+					"operator":    "equals",
+					"values":      []string{"US"},
+					"variation":   "var_a",
+					"description": "US users get variation A",
+				},
+			},
+		},
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/flags", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.CreateFlag(c)
+	
+	assert.Equal(t, http.StatusCreated, w.Code)
+	
+	var response types.Flag
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "variant-flag", response.Key)
+	assert.Equal(t, types.FlagTypeVariant, response.Type)
+	assert.Len(t, response.Variations, 2)
+	assert.Equal(t, "var_a", response.Variations[0].ID)
+	assert.Equal(t, "var_b", response.Variations[1].ID)
+	assert.NotNil(t, response.Targeting)
+	assert.Len(t, response.Targeting.Rules, 1)
+	assert.Contains(t, response.Tags, "experiment")
+	assert.Equal(t, "exp_123", response.Metadata["experiment_id"])
+	
+	mockRepo.AssertExpectations(t)
+}
+
+func TestFlagHandler_CreateFlag_ConflictError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockFlagRepository)
+	handler := handlers.NewFlagHandler(mockRepo, nil, nil, nil)
+	
+	// Mock duplicate key error for first environment (production)
+	mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(flag *types.Flag) bool {
+		return flag.Environment == "production"
+	})).Return(fmt.Errorf("duplicate key value violates unique constraint"))
+	
+	requestBody := map[string]interface{}{
+		"key":         "duplicate-flag",
+		"name":        "Duplicate Flag",
+		"type":        "boolean",
+		"enabled":     true,
+		"default":     true,
+		"project_id":  "proj_123",
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/flags", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.CreateFlag(c)
+	
+	assert.Equal(t, http.StatusConflict, w.Code)
+	
+	var response map[string]string
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response["error"], "flag with this key already exists")
+	assert.Contains(t, response["error"], "production environment")
+	
+	mockRepo.AssertExpectations(t)
+}
+
+func TestFlagHandler_CreateFlag_NoProjectIDDefaultFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	mockRepo := new(MockFlagRepository)
+	handler := handlers.NewFlagHandler(mockRepo, nil, nil, nil)
+	
+	// Mock successful creation for all default environments
+	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*types.Flag")).Return(nil).Times(3)
+	
+	requestBody := map[string]interface{}{
+		"key":         "default-project-flag",
+		"name":        "Default Project Flag",
+		"type":        "number",
+		"enabled":     true,
+		"default":     42,
+		// No project_id provided
+	}
+	
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+	
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/flags", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	
+	handler.CreateFlag(c)
+	
+	assert.Equal(t, http.StatusCreated, w.Code)
+	
+	var response types.Flag
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "default-project-flag", response.Key)
+	// Should use default project ID fallback
+	assert.Equal(t, "5aa79fcc-7e77-46fd-be58-f151574e57a9", response.ProjectID)
+	
+	mockRepo.AssertExpectations(t)
+}
+
 func BenchmarkFlagHandler_GetFlag(b *testing.B) {
 	gin.SetMode(gin.TestMode)
 	
@@ -726,6 +891,178 @@ func TestFlagHandler_CreateFlag_DuplicateKey(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 	assert.Contains(t, response["error"], "flag with this key already exists")
+
+	mockRepo.AssertExpectations(t)
+}
+
+// Additional comprehensive tests for CreateFlag to reach 90% coverage
+func TestFlagHandler_CreateFlag_EnvironmentFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockFlagRepository)
+	handler := handlers.NewFlagHandler(mockRepo, nil, nil, nil)
+
+	// Mock successful creation for all default environments
+	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*types.Flag")).Return(nil).Times(3)
+
+	// Don't provide environment field - should default to "production"
+	requestBody := map[string]interface{}{
+		"key":         "env-fallback-flag",
+		"name":        "Env Fallback Flag",
+		"type":        "string",
+		"enabled":     true,
+		"default":     "fallback_value",
+		"project_id":  "proj_123",
+		// Environment not specified - should default
+	}
+
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/flags", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+
+	handler.CreateFlag(c)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var response types.Flag
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "env-fallback-flag", response.Key)
+	assert.Equal(t, "production", response.Environment) // Should default to production
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestFlagHandler_CreateFlag_NonExistentEnvironmentRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockFlagRepository)
+	handler := handlers.NewFlagHandler(mockRepo, nil, nil, nil)
+
+	// Mock successful creation for all default environments
+	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*types.Flag")).Return(nil).Times(3)
+
+	// Request non-existent environment
+	requestBody := map[string]interface{}{
+		"key":         "nonexistent-env-flag",
+		"name":        "Nonexistent Env Flag",
+		"type":        "boolean",
+		"enabled":     true,
+		"default":     true,
+		"environment": "nonexistent", // This environment won't be created
+		"project_id":  "proj_123",
+	}
+
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/flags", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+
+	handler.CreateFlag(c)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var response types.Flag
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "nonexistent-env-flag", response.Key)
+	// Since the requested env "nonexistent" won't be created, should fallback to first created (production)
+	assert.Equal(t, "production", response.Environment)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestFlagHandler_CreateFlag_PartialEnvironmentFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockFlagRepository)
+	handler := handlers.NewFlagHandler(mockRepo, nil, nil, nil)
+
+	// Mock success for production, then error for staging
+	mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(flag *types.Flag) bool {
+		return flag.Environment == "production"
+	})).Return(nil)
+	mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(flag *types.Flag) bool {
+		return flag.Environment == "staging"
+	})).Return(fmt.Errorf("database connection failed"))
+
+	requestBody := map[string]interface{}{
+		"key":         "partial-fail-flag",
+		"name":        "Partial Fail Flag",
+		"type":        "boolean",
+		"enabled":     true,
+		"default":     true,
+		"project_id":  "proj_123",
+	}
+
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/flags", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+
+	handler.CreateFlag(c)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var response map[string]string
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response["error"], "database connection failed")
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestFlagHandler_CreateFlag_EmptyProjectIDFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(MockFlagRepository)
+	handler := handlers.NewFlagHandler(mockRepo, nil, nil, nil)
+
+	// Mock successful creation for all default environments
+	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*types.Flag")).Return(nil).Times(3)
+
+	// Explicitly provide empty project_id to test fallback
+	requestBody := map[string]interface{}{
+		"key":         "empty-project-flag",
+		"name":        "Empty Project Flag",
+		"type":        "number",
+		"enabled":     true,
+		"default":     42,
+		"project_id":  "", // Empty string should trigger fallback
+	}
+
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/flags", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+
+	handler.CreateFlag(c)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var response types.Flag
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "empty-project-flag", response.Key)
+	// Should use default project ID fallback
+	assert.Equal(t, "5aa79fcc-7e77-46fd-be58-f151574e57a9", response.ProjectID)
 
 	mockRepo.AssertExpectations(t)
 }
