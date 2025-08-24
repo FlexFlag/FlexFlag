@@ -20,7 +20,7 @@ import (
 // EdgeServer represents a distributed edge server for ultra-fast flag evaluation
 type EdgeServer struct {
 	cache      *edge.FlagCache
-	syncClient *edge.SyncClient
+	syncClient *edge.UnifiedSyncClient
 	config     *edge.Config
 	router     *gin.Engine
 }
@@ -31,7 +31,7 @@ func main() {
 	
 	// Initialize edge server components
 	cache := edge.NewFlagCache(config.CacheConfig)
-	syncClient := edge.NewSyncClient(config.HubURL, config.APIKey)
+	syncClient := edge.NewUnifiedSyncClient(config.HubURL, config.APIKey, config.SyncConfig.Type)
 	syncClient.SetCache(cache)
 	syncClient.SetConfig(config.SyncConfig)
 	
