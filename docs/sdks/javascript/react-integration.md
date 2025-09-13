@@ -376,7 +376,7 @@ function App() {
       <main>
         <FeatureFlag 
           flag="personalized-dashboard" 
-          context={{ userId: 'user-123', plan: 'premium' }}
+          context={% raw %}{{ userId: 'user-123', plan: 'premium' }}{% endraw %}
           fallback={<StandardDashboard />}
         >
           <PersonalizedDashboard />

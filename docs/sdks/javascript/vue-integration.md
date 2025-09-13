@@ -91,7 +91,7 @@ provide('flexflag-context', userContext);
   <div>
     <div v-if="loading">Loading...</div>
     <div v-else-if="error">
-      Error loading feature flag: {{ error.message }}
+      Error loading feature flag: {% raw %}{{ error.message }}{% endraw %}
     </div>
     <div v-else>
       <NewCheckoutFlow v-if="isEnabled" />
@@ -380,7 +380,7 @@ Usage:
   </div>
   <div v-else-if="error && showError">
     <slot name="error" :error="error">
-      Error: {{ error.message }}
+      Error: {% raw %}{{ error.message }}{% endraw %}
     </slot>
   </div>
   <div v-else-if="isEnabled">
@@ -453,7 +453,7 @@ Usage:
       </template>
       
       <template #error="{ error }">
-        <div class="error">Failed to load: {{ error.message }}</div>
+        <div class="error">Failed to load: {% raw %}{{ error.message }}{% endraw %}</div>
       </template>
       
       <template #fallback>

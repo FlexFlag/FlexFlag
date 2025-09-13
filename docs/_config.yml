@@ -2,7 +2,7 @@
 title: FlexFlag Documentation
 description: High-Performance Feature Flag Management System
 url: https://flexflag.github.io
-baseurl: /flexflag
+baseurl: /FlexFlag
 
 # Theme
 theme: minima
@@ -28,7 +28,7 @@ exclude:
   - vendor/
 
 # GitHub metadata
-repository: flexflag/flexflag
+repository: FlexFlag/FlexFlag
 
 # Social
 github_username: flexflag

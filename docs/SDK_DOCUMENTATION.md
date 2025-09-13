@@ -44,8 +44,8 @@ import { FlexFlagProvider, useFeatureFlag, FeatureGate } from '@flexflag/client/
 function App() {
   return (
     <FlexFlagProvider
-      config={{ apiKey: 'your_api_key' }}
-      context={{ userId: 'user123', attributes: { plan: 'premium' } }}
+      config={% raw %}{{ apiKey: 'your_api_key' }}{% endraw %}
+      context={% raw %}{{ userId: 'user123', attributes: { plan: 'premium' } }}{% endraw %}
     >
       <MyComponent />
     </FlexFlagProvider>
