@@ -1,0 +1,60 @@
+# FlexFlag Demo Deployment
+FROM golang:1.21-alpine AS backend-builder
+
+# Install build dependencies
+RUN apk add --no-cache git make build-base
+
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN make build
+
+FROM node:18-alpine AS frontend-builder
+
+WORKDIR /app
+
+# Copy package files
+COPY ui/package*.json ./
+RUN npm install
+
+# Copy UI source
+COPY ui/ .
+
+# Build the frontend
+RUN npm run build
+
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates postgresql-client curl
+
+WORKDIR /app
+
+# Copy built binaries
+COPY --from=backend-builder /app/bin/ ./bin/
+
+# Copy built frontend
+COPY --from=frontend-builder /app/.next ./ui/.next/
+COPY --from=frontend-builder /app/public ./ui/public/
+COPY --from=frontend-builder /app/package*.json ./ui/
+
+# Copy migrations
+COPY migrations/ ./migrations/
+
+# Create demo startup script
+COPY docker/demo-startup.sh ./
+RUN chmod +x demo-startup.sh
+
+# Create demo user data
+COPY docker/demo-data.sql ./
+
+EXPOSE 8080 3000
+
+CMD ["./demo-startup.sh"]

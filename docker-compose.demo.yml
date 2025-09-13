@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: flexflag_demo
+      POSTGRES_USER: flexflag
+      POSTGRES_PASSWORD: demo_password
+    volumes:
+      - demo_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flexflag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - demo_redis_data:/data
+
+  flexflag-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USERNAME=flexflag
+      - DATABASE_PASSWORD=demo_password
+      - DATABASE_NAME=flexflag_demo
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - FLEXFLAG_DEMO_MODE=true
+      - JWT_SECRET=demo_jwt_secret_change_in_production
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.flexflag.rule=Host(`demo.flexflag.io`)"
+      - "traefik.http.routers.flexflag.tls=true"
+      - "traefik.http.routers.flexflag.tls.certresolver=letsencrypt"
+
+volumes:
+  demo_postgres_data:
+  demo_redis_data:
