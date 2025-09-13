@@ -209,37 +209,7 @@ func (r *SegmentRepository) GetByKeys(ctx context.Context, keys []string, projec
 		return []*types.Segment{}, nil
 	}
 	
-	// Build IN clause with placeholders
-	placeholders := make([]string, len(keys))
-	args := make([]interface{}, len(keys)+1)
-	args[0] = projectID
-	
-	for i, key := range keys {
-		placeholders[i] = fmt.Sprintf("$%d", i+2)
-		args[i+1] = key
-	}
-	
-	query := fmt.Sprintf(`
-		SELECT id, key, name, description, rules, environment, created_at, updated_at
-		FROM segments
-		WHERE environment = $1 AND key IN (%s)
-		ORDER BY created_at DESC
-	`, string(placeholders[0]))
-	
-	for i := 1; i < len(placeholders); i++ {
-		query = fmt.Sprintf("%s, %s", query[:len(query)-len(" ORDER BY created_at DESC")], placeholders[i]) + " ORDER BY created_at DESC"
-	}
-	
-	// Rebuild the query properly
-	query = fmt.Sprintf(`
-		SELECT id, key, name, description, rules, environment, created_at, updated_at
-		FROM segments
-		WHERE environment = $1 AND key IN (%s)
-		ORDER BY created_at DESC
-	`, "'" + keys[0] + "'")
-	
-	// Actually, let's use a simpler approach with ANY
-	query = `
+	query := `
 		SELECT id, project_id, key, name, description, rules, created_at, updated_at
 		FROM segments
 		WHERE project_id = $1 AND key = ANY($2)

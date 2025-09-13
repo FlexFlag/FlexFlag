@@ -159,7 +159,7 @@ func BenchmarkEvaluationRequest_Parsing(b *testing.B) {
 	r := gin.New()
 	r.POST("/evaluate", func(c *gin.Context) {
 		var req types.EvaluationRequest
-		c.ShouldBindJSON(&req)
+		_ = c.ShouldBindJSON(&req)
 		c.JSON(http.StatusOK, gin.H{"flag": req.FlagKey})
 	})
 

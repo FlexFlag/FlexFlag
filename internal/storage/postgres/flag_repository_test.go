@@ -544,6 +544,6 @@ func BenchmarkFlagRepository_Create(b *testing.B) {
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		repo.Create(context.Background(), flag)
+		_ = repo.Create(context.Background(), flag)
 	}
 }

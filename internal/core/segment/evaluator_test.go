@@ -486,6 +486,6 @@ func BenchmarkEvaluateSegment(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		evaluator.EvaluateSegment(segment, userContext)
+		_, _ = evaluator.EvaluateSegment(segment, userContext)
 	}
 }

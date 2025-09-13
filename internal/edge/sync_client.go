@@ -180,7 +180,7 @@ func (sc *SyncClient) handleMessages() {
 	
 	// Set up ping/pong handlers
 	sc.conn.SetPongHandler(func(string) error {
-		sc.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = sc.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 	

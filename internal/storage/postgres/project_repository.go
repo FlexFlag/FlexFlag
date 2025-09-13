@@ -163,7 +163,7 @@ func (r *ProjectRepository) Update(ctx context.Context, project *types.Project) 
 	`
 	
 	var settingsJSON sql.NullString
-	if project.Settings != nil && len(project.Settings) > 0 {
+	if len(project.Settings) > 0 {
 		settingsBytes, err := json.Marshal(project.Settings)
 		if err != nil {
 			return fmt.Errorf("failed to marshal settings: %w", err)

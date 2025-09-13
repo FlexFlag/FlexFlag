@@ -341,7 +341,7 @@ func TestEngine_EvaluateFlag_WithRollout(t *testing.T) {
 		assert.Equal(t, "rollout", result.Reason)
 		
 		var value string
-		json.Unmarshal(result.Value, &value)
+		_ = json.Unmarshal(result.Value, &value)
 		results[value]++
 	}
 

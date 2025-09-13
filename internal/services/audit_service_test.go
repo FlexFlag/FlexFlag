@@ -479,6 +479,6 @@ func BenchmarkLogFlagAction(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		service.LogFlagAction(context.Background(), c, "create", flag, nil)
+		_ = service.LogFlagAction(context.Background(), c, "create", flag, nil)
 	}
 }

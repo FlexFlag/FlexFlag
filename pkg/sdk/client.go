@@ -18,7 +18,6 @@ type Client struct {
 	httpClient *http.Client
 	cache      map[string]*types.Flag
 	cacheMu    sync.RWMutex
-	refreshing bool
 	stopCh     chan struct{}
 	config     *Config
 }

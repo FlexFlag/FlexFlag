@@ -391,6 +391,6 @@ func BenchmarkEvaluatePercentageRollout(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		evaluator.evaluatePercentageRollout(rollout, "user123")
+		_, _ = evaluator.evaluatePercentageRollout(rollout, "user123")
 	}
 }

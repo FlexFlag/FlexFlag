@@ -233,7 +233,7 @@ func (r *ApiKeyRepository) UpdateApiKey(ctx context.Context, keyID string, req *
 		return fmt.Errorf("no fields to update")
 	}
 
-	setParts = append(setParts, fmt.Sprintf("updated_at = NOW()"))
+	setParts = append(setParts, "updated_at = NOW()")
 
 	setClause := ""
 	for i, part := range setParts {
@@ -280,7 +280,7 @@ func (r *ApiKeyRepository) getEnvironmentByID(ctx context.Context, envID string)
 // Helper function to update last used timestamp
 func (r *ApiKeyRepository) updateLastUsed(ctx context.Context, keyID string) {
 	query := `UPDATE api_keys SET last_used_at = NOW() WHERE id = $1`
-	r.db.ExecContext(ctx, query, keyID)
+	_, _ = r.db.ExecContext(ctx, query, keyID)
 }
 
 // GetAllApiKeys retrieves all API keys for edge server sync

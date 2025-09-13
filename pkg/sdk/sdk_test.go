@@ -56,7 +56,7 @@ func TestClient_EvaluateFlag(t *testing.T) {
 			resp := map[string]interface{}{
 				"flags": []*types.Flag{},
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/v1/evaluate" {
 			// Handle evaluate endpoint
 			assert.Equal(t, "Bearer test-api-key", r.Header.Get("Authorization"))
@@ -75,7 +75,7 @@ func TestClient_EvaluateFlag(t *testing.T) {
 				Reason:    "default_value",
 				Default:   true,
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		}
 	}))
 	defer server.Close()
@@ -137,7 +137,7 @@ func TestClient_EvaluateFlag_FromAPI(t *testing.T) {
 			resp := map[string]interface{}{
 				"flags": []*types.Flag{},
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/v1/evaluate" {
 			// Handle evaluate endpoint
 			assert.Equal(t, "Bearer test-api-key", r.Header.Get("Authorization"))
@@ -156,7 +156,7 @@ func TestClient_EvaluateFlag_FromAPI(t *testing.T) {
 				Reason:    "default_value",
 				Default:   true,
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		}
 	}))
 	defer server.Close()
@@ -187,7 +187,7 @@ func TestClient_BoolValue(t *testing.T) {
 			resp := map[string]interface{}{
 				"flags": []*types.Flag{},
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/v1/evaluate" {
 			// Handle evaluate endpoint
 			resp := &types.EvaluationResponse{
@@ -197,7 +197,7 @@ func TestClient_BoolValue(t *testing.T) {
 				Reason:    "default_value",
 				Default:   true,
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		}
 	}))
 	defer server.Close()
@@ -278,7 +278,7 @@ func TestClient_NumberValue(t *testing.T) {
 			resp := map[string]interface{}{
 				"flags": []*types.Flag{},
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/v1/evaluate" {
 			// Handle evaluate endpoint
 			resp := &types.EvaluationResponse{
@@ -288,7 +288,7 @@ func TestClient_NumberValue(t *testing.T) {
 				Reason:    "default_value",
 				Default:   true,
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		}
 	}))
 	defer server.Close()

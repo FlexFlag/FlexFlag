@@ -49,7 +49,7 @@ func (r *FlagRepository) Create(ctx context.Context, flag *types.Flag) error {
 	}
 
 	var metadataJSON sql.NullString
-	if flag.Metadata != nil && len(flag.Metadata) > 0 {
+	if len(flag.Metadata) > 0 {
 		metadataBytes, err := json.Marshal(flag.Metadata)
 		if err != nil {
 			return fmt.Errorf("failed to marshal metadata: %w", err)
@@ -371,7 +371,7 @@ func (r *FlagRepository) Update(ctx context.Context, flag *types.Flag) error {
 	}
 
 	var metadataJSON sql.NullString
-	if flag.Metadata != nil && len(flag.Metadata) > 0 {
+	if len(flag.Metadata) > 0 {
 		metadataBytes, err := json.Marshal(flag.Metadata)
 		if err != nil {
 			return fmt.Errorf("failed to marshal metadata: %w", err)
