@@ -46,9 +46,9 @@ var createCmd = &cobra.Command{
 			defVal = defaultValue == "true"
 		case "number":
 			defVal = 0
-			fmt.Sscanf(defaultValue, "%f", &defVal)
+			_, _ = fmt.Sscanf(defaultValue, "%f", &defVal)
 		case "json":
-			json.Unmarshal([]byte(defaultValue), &defVal)
+			_ = json.Unmarshal([]byte(defaultValue), &defVal)
 		default:
 			defVal = defaultValue
 		}
@@ -75,7 +75,7 @@ var createCmd = &cobra.Command{
 			fmt.Printf("✅ Flag '%s' created successfully\n", flagKey)
 			
 			var result map[string]interface{}
-			json.NewDecoder(resp.Body).Decode(&result)
+			_ = json.NewDecoder(resp.Body).Decode(&result)
 			
 			fmt.Printf("  Type: %s\n", flagType)
 			fmt.Printf("  Default: %v\n", defVal)
@@ -103,7 +103,7 @@ var listCmd = &cobra.Command{
 		var result struct {
 			Flags []map[string]interface{} `json:"flags"`
 		}
-		json.NewDecoder(resp.Body).Decode(&result)
+		_ = json.NewDecoder(resp.Body).Decode(&result)
 
 		if len(result.Flags) == 0 {
 			fmt.Println("No flags found")
@@ -150,7 +150,7 @@ var toggleCmd = &cobra.Command{
 
 		if resp.StatusCode == http.StatusOK {
 			var result map[string]interface{}
-			json.NewDecoder(resp.Body).Decode(&result)
+			_ = json.NewDecoder(resp.Body).Decode(&result)
 			fmt.Printf("✅ Flag '%s' toggled successfully. Enabled: %v\n", flagKey, result["enabled"])
 		} else {
 			body, _ := io.ReadAll(resp.Body)
@@ -176,7 +176,7 @@ var getCmd = &cobra.Command{
 
 		if resp.StatusCode == http.StatusOK {
 			var flag map[string]interface{}
-			json.NewDecoder(resp.Body).Decode(&flag)
+			_ = json.NewDecoder(resp.Body).Decode(&flag)
 			
 			fmt.Printf("Flag: %s\n", flag["key"])
 			fmt.Printf("  Name: %s\n", flag["name"])

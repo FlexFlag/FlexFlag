@@ -192,7 +192,7 @@ func (h *RolloutHandler) EvaluateRollout(c *gin.Context) {
 			ExpiresAt:   rollout.EndDate,
 		}
 
-		h.rolloutRepo.CreateStickyAssignment(c.Request.Context(), assignment)
+		_ = h.rolloutRepo.CreateStickyAssignment(c.Request.Context(), assignment)
 	}
 
 	c.JSON(http.StatusOK, result)

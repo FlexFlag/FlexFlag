@@ -71,7 +71,7 @@ func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 	// Fast path for disabled flags
 	if !flag.Enabled {
 		var value interface{}
-		json.Unmarshal(flag.Default, &value)
+		_ = json.Unmarshal(flag.Default, &value)
 		
 		evalTime := float64(time.Since(startTime).Microseconds()) / 1000.0
 		c.JSON(http.StatusOK, EvaluateResponse{
@@ -109,7 +109,7 @@ func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 
 	// Parse the value from JSON
 	var value interface{}
-	json.Unmarshal(evalResp.Value, &value)
+	_ = json.Unmarshal(evalResp.Value, &value)
 
 	response := EvaluateResponse{
 		FlagKey:        evalResp.FlagKey,
@@ -179,7 +179,7 @@ func (h *OptimizedEvaluationHandler) FastBatchEvaluate(c *gin.Context) {
 		// Fast path for disabled flags
 		if !flag.Enabled {
 			var value interface{}
-			json.Unmarshal(flag.Default, &value)
+			_ = json.Unmarshal(flag.Default, &value)
 			results[flagKey] = map[string]interface{}{
 				"value":   value,
 				"reason":  "flag_disabled",
@@ -207,7 +207,7 @@ func (h *OptimizedEvaluationHandler) FastBatchEvaluate(c *gin.Context) {
 		}
 
 		var value interface{}
-		json.Unmarshal(evalResp.Value, &value)
+		_ = json.Unmarshal(evalResp.Value, &value)
 
 		results[flagKey] = map[string]interface{}{
 			"value":     value,

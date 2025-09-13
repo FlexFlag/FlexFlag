@@ -230,7 +230,7 @@ func (r *ProjectRepository) CreateEnvironment(ctx context.Context, env *types.En
 	`
 	
 	var settingsJSON sql.NullString
-	if env.Settings != nil && len(env.Settings) > 0 {
+	if len(env.Settings) > 0 {
 		settingsBytes, err := json.Marshal(env.Settings)
 		if err != nil {
 			return fmt.Errorf("failed to marshal settings: %w", err)
@@ -353,7 +353,7 @@ func (r *ProjectRepository) UpdateEnvironment(ctx context.Context, id string, re
 		argIndex++
 	}
 	
-	if req.Settings != nil && len(req.Settings) > 0 {
+	if len(req.Settings) > 0 {
 		settingsBytes, err := json.Marshal(req.Settings)
 		if err != nil {
 			return fmt.Errorf("failed to marshal settings: %w", err)

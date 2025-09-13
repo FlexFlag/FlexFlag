@@ -76,7 +76,7 @@ func (h *UltraFastHandler) preloadFlags() {
 			
 			// Pre-unmarshal default value
 			var defaultValue interface{}
-			json.Unmarshal(flag.Default, &defaultValue)
+			_ = json.Unmarshal(flag.Default, &defaultValue)
 			
 			h.flags[key] = &PrecomputedFlag{
 				Key:          flag.Key,
@@ -152,7 +152,7 @@ func (h *UltraFastHandler) UltraFastEvaluate(c *gin.Context) {
 		
 		// Pre-process and cache
 		var defaultValue interface{}
-		json.Unmarshal(dbFlag.Default, &defaultValue)
+		_ = json.Unmarshal(dbFlag.Default, &defaultValue)
 		
 		flag = &PrecomputedFlag{
 			Key:          dbFlag.Key,
@@ -240,7 +240,7 @@ func (h *UltraFastHandler) fastTargetingEvaluation(flag *PrecomputedFlag, req *E
 				for _, variation := range flag.Variations {
 					if variation.ID == rule.Variation {
 						var varValue interface{}
-						json.Unmarshal(variation.Value, &varValue)
+						_ = json.Unmarshal(variation.Value, &varValue)
 						return varValue
 					}
 				}
@@ -258,7 +258,7 @@ func (h *UltraFastHandler) fastTargetingEvaluation(flag *PrecomputedFlag, req *E
 				for _, variation := range flag.Variations {
 					if variation.ID == vr.VariationID {
 						var varValue interface{}
-						json.Unmarshal(variation.Value, &varValue)
+						_ = json.Unmarshal(variation.Value, &varValue)
 						return varValue
 					}
 				}
@@ -346,7 +346,7 @@ func (h *UltraFastHandler) RefreshFlag(flagKey, environment string) {
 	
 	// Pre-unmarshal default value
 	var defaultValue interface{}
-	json.Unmarshal(flag.Default, &defaultValue)
+	_ = json.Unmarshal(flag.Default, &defaultValue)
 	
 	precomputed := &PrecomputedFlag{
 		Key:          flag.Key,

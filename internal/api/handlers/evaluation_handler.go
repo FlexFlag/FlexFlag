@@ -101,7 +101,7 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 	// If flag is disabled, return default value immediately
 	if !flag.Enabled {
 		var value interface{}
-		json.Unmarshal(flag.Default, &value)
+		_ = json.Unmarshal(flag.Default, &value)
 		
 		evalTime := float64(time.Since(startTime).Microseconds()) / 1000.0
 		c.JSON(http.StatusOK, EvaluateResponse{
@@ -157,7 +157,7 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 			result, rolloutErr := h.rolloutEval.EvaluateRollout(rollout, userKey, stickyAssignment)
 			if rolloutErr == nil && result.Matched {
 				var value interface{}
-				json.Unmarshal(flag.Default, &value)
+				_ = json.Unmarshal(flag.Default, &value)
 
 				// For percentage rollouts, return enabled/disabled based on match
 				if rollout.Type == "percentage" && result.Matched {
@@ -204,7 +204,7 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 						BucketKey:   h.rolloutEval.GenerateBucketKey(rollout.FlagID, rollout.Environment, userKey, rollout.Config.BucketBy),
 						ExpiresAt:   rollout.EndDate,
 					}
-					h.rolloutRepo.CreateStickyAssignment(c.Request.Context(), assignment)
+					_ = h.rolloutRepo.CreateStickyAssignment(c.Request.Context(), assignment)
 				}
 			}
 		}
@@ -277,7 +277,7 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 
 	// Parse the value from JSON
 	var value interface{}
-	json.Unmarshal(evalResp.Value, &value)
+	_ = json.Unmarshal(evalResp.Value, &value)
 
 	// Create sticky assignment for variant flags if sticky bucketing is enabled and user got a variation
 	if flag.Type == "variant" && flag.Targeting != nil && flag.Targeting.Rollout != nil && 
@@ -299,7 +299,7 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 				VariationID: evalResp.Variation,
 				BucketKey:   fmt.Sprintf("%s:%s:%d", flag.Key, userKey, flag.Targeting.Rollout.Seed),
 			}
-			h.rolloutRepo.CreateStickyAssignment(c.Request.Context(), assignment)
+			_ = h.rolloutRepo.CreateStickyAssignment(c.Request.Context(), assignment)
 		}
 	}
 
@@ -365,7 +365,7 @@ func (h *EvaluationHandler) BatchEvaluate(c *gin.Context) {
 		// If flag is disabled, return default value
 		if !flag.Enabled {
 			var value interface{}
-			json.Unmarshal(flag.Default, &value)
+			_ = json.Unmarshal(flag.Default, &value)
 			results[flagKey] = map[string]interface{}{
 				"value":   value,
 				"reason":  "flag_disabled",
@@ -397,7 +397,7 @@ func (h *EvaluationHandler) BatchEvaluate(c *gin.Context) {
 
 		// Parse the value from JSON
 		var value interface{}
-		json.Unmarshal(evalResp.Value, &value)
+		_ = json.Unmarshal(evalResp.Value, &value)
 
 		results[flagKey] = map[string]interface{}{
 			"value":     value,

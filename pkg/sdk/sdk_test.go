@@ -63,7 +63,7 @@ func TestClient_EvaluateFlag(t *testing.T) {
 			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 			var req types.EvaluationRequest
-			json.NewDecoder(r.Body).Decode(&req)
+			_ = json.NewDecoder(r.Body).Decode(&req)
 			assert.Equal(t, "test-flag", req.FlagKey)
 			assert.Equal(t, "user_123", req.UserID)
 			assert.Equal(t, "production", req.Environment)
@@ -144,7 +144,7 @@ func TestClient_EvaluateFlag_FromAPI(t *testing.T) {
 			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 			var req types.EvaluationRequest
-			json.NewDecoder(r.Body).Decode(&req)
+			_ = json.NewDecoder(r.Body).Decode(&req)
 			assert.Equal(t, "test-flag", req.FlagKey)
 			assert.Equal(t, "user_123", req.UserID)
 			assert.Equal(t, "production", req.Environment)
@@ -250,7 +250,7 @@ func TestClient_StringValue(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -336,7 +336,7 @@ func TestClient_RefreshFlags(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"flags": flags,
 		})
 	}))
@@ -440,7 +440,7 @@ func BenchmarkClient_BoolValue(b *testing.B) {
 			Environment: "production",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(flag)
+		_ = json.NewEncoder(w).Encode(flag)
 	}))
 	defer server.Close()
 
