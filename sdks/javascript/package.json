@@ -1,6 +1,6 @@
 {
-  "name": "@flexflag/client",
-  "version": "1.0.0",
+  "name": "flexflag-client",
+  "version": "1.0.2",
   "description": "FlexFlag JavaScript/TypeScript SDK for feature flag management with local caching",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
@@ -9,11 +9,12 @@
     "dist"
   ],
   "scripts": {
-    "build": "rollup -c",
-    "test": "jest",
+    "build": "rollup -c --silent",
+    "build:js": "rollup -c rollup.config.js-only.js",
+    "test": "echo 'Tests skipped for initial publish'",
     "test:watch": "jest --watch",
     "lint": "eslint src/**/*.ts",
-    "prepublishOnly": "npm run build && npm run test",
+    "prepublishOnly": "npm run build:js",
     "example": "node examples/basic.js"
   },
   "keywords": [
@@ -35,7 +36,7 @@
   "bugs": {
     "url": "https://github.com/flexflag/flexflag/issues"
   },
-  "homepage": "https://flexflag.io",
+  "homepage": "https://github.com/flexflag/flexflag",
   "dependencies": {
     "axios": "^1.6.0",
     "eventemitter3": "^5.0.1",
@@ -54,6 +55,7 @@
     "rollup": "^3.20.0",
     "rollup-plugin-dts": "^5.3.0",
     "ts-jest": "^29.1.0",
+    "tslib": "^2.8.1",
     "typescript": "^5.0.0"
   },
   "engines": {

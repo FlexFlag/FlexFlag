@@ -45,6 +45,7 @@ npm install flexflag-client
 - **GitHub Repository**: [github.com/flexflag/flexflag](https://github.com/flexflag/flexflag)
 - **Issues & Support**: [github.com/flexflag/flexflag/issues](https://github.com/flexflag/flexflag/issues)
 - **npm Package**: [npmjs.com/package/flexflag-client](https://www.npmjs.com/package/flexflag-client)
+- **Discord Community**: [Join our Discord](https://discord.gg/fpewTJyx9S)
 
 ## 🏗️ Architecture
 

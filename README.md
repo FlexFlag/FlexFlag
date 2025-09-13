@@ -676,7 +676,7 @@ FlexFlag is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 - **GitHub**: [github.com/flexflag/flexflag](https://github.com/flexflag/flexflag)
 - **Documentation**: [docs.flexflag.io](https://docs.flexflag.io)
 - **Issues**: [github.com/flexflag/flexflag/issues](https://github.com/flexflag/flexflag/issues)
-- **Discord**: [Join our community](https://discord.gg/flexflag)
+- **Discord**: [Join our community](https://discord.gg/fpewTJyx9S)
 
 ## 💡 Architecture Overview
 

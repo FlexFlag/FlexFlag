@@ -345,7 +345,7 @@ export function useFlexFlagMetrics() {
  */
 export const vFeatureFlag = {
   async mounted(el: HTMLElement, binding: any) {
-    const { value: flagKey, modifiers, arg } = binding;
+    const { value: flagKey, modifiers } = binding;
     const client = inject(FlexFlagClientKey);
     
     if (!client) {

@@ -199,4 +199,5 @@ MIT License - see [LICENSE](../../../LICENSE) for details.
 **Need help?** 
 - 📖 Check the [API Reference](./api-reference.md)
 - 🐛 [Report issues](https://github.com/flexflag/flexflag/issues)
-- 💬 [Join our community](https://github.com/flexflag/flexflag/discussions)
+- 💬 [Join our Discord](https://discord.gg/fpewTJyx9S)
+- 🗣️ [GitHub Discussions](https://github.com/flexflag/flexflag/discussions)

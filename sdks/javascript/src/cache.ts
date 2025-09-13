@@ -328,15 +328,15 @@ export class TieredCache implements CacheProvider {
  * No-op cache provider for when caching is disabled
  */
 export class NoOpCache implements CacheProvider {
-  async get(key: string): Promise<FlagValue | null> {
+  async get(_key: string): Promise<FlagValue | null> {
     return null;
   }
 
-  async set(key: string, value: FlagValue, ttl?: number): Promise<void> {
+  async set(_key: string, _value: FlagValue, _ttl?: number): Promise<void> {
     // No-op
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(_key: string): Promise<void> {
     // No-op
   }
 
@@ -344,7 +344,7 @@ export class NoOpCache implements CacheProvider {
     // No-op
   }
 
-  async has(key: string): Promise<boolean> {
+  async has(_key: string): Promise<boolean> {
     return false;
   }
 
