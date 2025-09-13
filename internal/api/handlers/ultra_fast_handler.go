@@ -92,7 +92,9 @@ func (h *UltraFastHandler) preloadFlags() {
 		}
 		h.mu.Unlock()
 	}
+	h.mu.Lock()
 	h.preloadDone = true
+	h.mu.Unlock()
 }
 
 func (h *UltraFastHandler) UltraFastEvaluate(c *gin.Context) {
@@ -385,6 +387,7 @@ func (h *UltraFastHandler) RefreshAllFlags() {
 func (h *UltraFastHandler) GetStats(c *gin.Context) {
 	h.mu.RLock()
 	flagCount := len(h.flags)
+	preloadComplete := h.preloadDone
 	h.mu.RUnlock()
 	
 	h.cacheMu.RLock()
@@ -394,7 +397,7 @@ func (h *UltraFastHandler) GetStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"preloaded_flags":   flagCount,
 		"cached_responses":  cacheCount,
-		"preload_complete":  h.preloadDone,
+		"preload_complete":  preloadComplete,
 	})
 }
 

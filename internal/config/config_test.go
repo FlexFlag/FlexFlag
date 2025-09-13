@@ -13,6 +13,34 @@ func TestConfig_Defaults(t *testing.T) {
 	// Reset viper for clean test
 	viper.Reset()
 	
+	// Clear environment variables that might override defaults in CI
+	envVars := []string{
+		"FLEXFLAG_SERVER_HOST",
+		"FLEXFLAG_SERVER_PORT",
+		"FLEXFLAG_DATABASE_HOST",
+		"FLEXFLAG_DATABASE_PORT",
+		"FLEXFLAG_DATABASE_USERNAME",
+		"FLEXFLAG_DATABASE_PASSWORD", 
+		"FLEXFLAG_DATABASE_DATABASE",
+		"FLEXFLAG_REDIS_HOST",
+		"FLEXFLAG_REDIS_PORT",
+	}
+	
+	originalValues := make(map[string]string)
+	for _, envVar := range envVars {
+		originalValues[envVar] = os.Getenv(envVar)
+		os.Unsetenv(envVar)
+	}
+	
+	defer func() {
+		// Restore original environment variables
+		for envVar, originalValue := range originalValues {
+			if originalValue != "" {
+				os.Setenv(envVar, originalValue)
+			}
+		}
+	}()
+	
 	config, err := Load()
 	require.NoError(t, err)
 	require.NotNil(t, config)

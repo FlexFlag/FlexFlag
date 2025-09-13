@@ -3,13 +3,13 @@ package evaluation
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/flexflag/flexflag/pkg/types"
-	"github.com/spaolacci/murmur3"
 )
 
 type Engine struct {
@@ -136,7 +136,9 @@ func (e *Engine) evaluateRollout(req *types.EvaluationRequest, flag *types.Flag)
 	}
 
 	hashInput := fmt.Sprintf("%s:%s:%d", flag.Key, bucketKey, flag.Targeting.Rollout.Seed)
-	hash := murmur3.Sum32([]byte(hashInput))
+	h := fnv.New32a()
+	h.Write([]byte(hashInput))
+	hash := h.Sum32()
 	
 	// Convert hash to bucket in range [0, 100000)
 	bucket := int(hash % 100000)
