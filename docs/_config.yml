@@ -1,0 +1,34 @@
+# FlexFlag Documentation Site Configuration
+title: FlexFlag Documentation
+description: High-Performance Feature Flag Management System
+url: https://flexflag.github.io
+baseurl: /flexflag
+
+# Theme
+theme: minima
+markdown: kramdown
+highlighter: rouge
+
+# Navigation
+header_pages:
+  - sdks/javascript/README.md
+  - sdks/javascript/getting-started.md
+  - sdks/javascript/react-integration.md
+  - sdks/javascript/vue-integration.md
+  - sdks/javascript/api-reference.md
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+# Build settings
+exclude:
+  - node_modules/
+  - vendor/
+
+# GitHub metadata
+repository: flexflag/flexflag
+
+# Social
+github_username: flexflag
