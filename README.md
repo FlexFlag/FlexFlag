@@ -21,23 +21,59 @@ FlexFlag is a high-performance, developer-first feature flag management system w
 
 ### ⚡ Single Command Setup (Recommended)
 
-**Get FlexFlag running in 30 seconds:**
+**Get FlexFlag running in under 2 minutes:**
 
 ```bash
-# Clone and run everything with one command
-git clone https://github.com/flexflag/flexflag.git
-cd flexflag
-./run-dev.sh
+# Clone the repository
+git clone https://github.com/FlexFlag/FlexFlag.git
+cd FlexFlag
+
+# Run the development setup (installs everything automatically)
+./setup-dev.sh
 ```
 
-🎉 **That's it!** FlexFlag will automatically:
-- ✅ Install dependencies and build the application
-- ✅ Start PostgreSQL and Redis via Docker
-- ✅ Run database migrations
-- ✅ Launch API server (port 8080), UI (port 3000), and Edge server (port 8083)
-- ✅ Display all URLs and login credentials
+🎉 **The setup script automatically:**
+- ✅ Validates prerequisites (Docker, Go 1.21+, Node.js 18.17+)
+- ✅ Starts PostgreSQL and Redis via Docker
+- ✅ Runs database migrations with error recovery
+- ✅ Builds the Go backend and installs UI dependencies
+- ✅ **Starts both API server and UI automatically**
+- ✅ Verifies setup with health checks
+
+**That's it!** After setup completes, FlexFlag is ready to use!
+
+**URLs:** API (http://localhost:8080) | UI (http://localhost:3000) | Swagger (http://localhost:8080/swagger)
 
 **Default login:** `admin@example.com` / `secret`
+
+### 🎛️ Development Commands
+
+```bash
+# Stop all services
+./scripts/stop-dev.sh
+
+# Restart all services  
+./scripts/restart-dev.sh
+
+# View logs
+tail -f logs/api.log    # API server logs
+tail -f logs/ui.log     # UI server logs
+
+# Run tests
+make test
+```
+
+---
+
+### 🧹 Clean Start (If Issues Occur)
+
+If you encounter any setup issues, use the clean setup:
+
+```bash
+# Completely clean and restart (removes all data)
+./scripts/clean-setup.sh
+./setup-dev.sh
+```
 
 ---
 

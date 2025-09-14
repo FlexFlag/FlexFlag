@@ -8,6 +8,14 @@ set -e
 echo "🚀 FlexFlag Development Setup"
 echo "==============================="
 
+# Add cleanup function for failed setups
+cleanup() {
+    print_error "Setup failed! Cleaning up..."
+    docker-compose down 2>/dev/null || true
+    exit 1
+}
+trap cleanup ERR
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -99,16 +107,51 @@ fi
 
 # Start infrastructure services
 print_status "Starting PostgreSQL and Redis with Docker Compose..."
-docker-compose up -d postgres redis
+if ! docker-compose -f docker-compose.dev.yml up -d; then
+    print_error "Failed to start Docker services"
+    print_error "Make sure Docker is running and try: docker-compose -f docker-compose.dev.yml down && docker-compose -f docker-compose.dev.yml up -d"
+    exit 1
+fi
 
-# Wait for PostgreSQL to be ready
+# Wait for PostgreSQL to be ready with better health check
 print_status "Waiting for PostgreSQL to be ready..."
-sleep 5
+max_attempts=30
+attempts=0
+while ! docker exec flexflag-postgres pg_isready -U flexflag -d flexflag >/dev/null 2>&1; do
+    attempts=$((attempts + 1))
+    if [ $attempts -ge $max_attempts ]; then
+        print_error "PostgreSQL failed to start after 30 attempts"
+        print_error "Check logs with: docker-compose logs postgres"
+        exit 1
+    fi
+    print_status "Waiting for PostgreSQL... (attempt $attempts/$max_attempts)"
+    sleep 2
+done
+print_success "PostgreSQL is ready!"
 
-# Run database migrations
+# Run database migrations with better error handling
 print_status "Running database migrations..."
 if command -v make &> /dev/null; then
-    make migrate-up
+    # Check for dirty migration state and fix it
+    if ! make migrate-up 2>/dev/null; then
+        print_warning "Migration failed, attempting to fix dirty state..."
+        
+        # Try to force reset and re-run
+        print_status "Checking migration state..."
+        DIRTY_VERSION=$(docker exec flexflag-postgres psql -U flexflag -d flexflag -tAc "SELECT version FROM schema_migrations WHERE dirty = true LIMIT 1;" 2>/dev/null || echo "")
+        
+        if [ ! -z "$DIRTY_VERSION" ]; then
+            print_status "Found dirty migration at version $DIRTY_VERSION, forcing reset..."
+            go run cmd/migrator/main.go -database-url "postgres://flexflag:flexflag@localhost:5433/flexflag?sslmode=disable" -force-version $((DIRTY_VERSION - 1)) || true
+        fi
+        
+        # Try migration again
+        if ! make migrate-up; then
+            print_error "Migrations failed even after cleanup. Please check database manually."
+            print_error "Try running: make migrate-down && make migrate-up"
+            exit 1
+        fi
+    fi
 else
     print_warning "Make not found, please run 'make migrate-up' manually after setup"
 fi
@@ -121,28 +164,77 @@ else
     print_warning "Make not found, please run 'make build' manually"
 fi
 
-# Install UI dependencies
+# Install UI dependencies with error handling
 print_status "Installing UI dependencies..."
+if [ -d "ui" ]; then
+    cd ui
+    if ! npm install; then
+        print_error "Failed to install UI dependencies"
+        print_error "Try running: cd ui && rm -rf node_modules package-lock.json && npm install"
+        exit 1
+    fi
+    cd ..
+else
+    print_warning "UI directory not found, skipping npm install"
+fi
+
+# Create logs directory
+mkdir -p logs
+
+# Start both API server and UI automatically
+print_status "Starting FlexFlag services..."
+
+# Start API server in background
+print_status "Starting API server on port 8080..."
+make run > logs/api.log 2>&1 &
+API_PID=$!
+echo $API_PID > .api.pid
+
+# Wait a moment for server to start
+sleep 3
+
+# Test health endpoint
+if curl -f -s http://localhost:8080/health > /dev/null 2>&1; then
+    print_success "API server is running!"
+else
+    print_warning "API server may still be starting..."
+fi
+
+# Start UI in background
+print_status "Starting UI on port 3000..."
 cd ui
-npm install
+npm run dev > ../logs/ui.log 2>&1 &
+UI_PID=$!
+echo $UI_PID > ../.ui.pid
 cd ..
 
-print_success "Development setup complete!"
+# Wait for UI to start
+sleep 5
+
+# Check if UI is running
+if curl -f -s http://localhost:3000 > /dev/null 2>&1; then
+    print_success "UI is running!"
+else
+    print_status "UI is starting up... (may take a few moments)"
+fi
+
+print_success "🎉 FlexFlag is running!"
 echo ""
-echo "🎉 FlexFlag is ready for development!"
-echo ""
-echo "Next steps:"
-echo "1. Start the API server:    make run"
-echo "2. Start the UI:            cd ui && npm run dev"  
-echo "3. Start an edge server:    FLEXFLAG_EDGE_SYNC_TYPE=sse FLEXFLAG_EDGE_PORT=8083 ./bin/edge-server"
-echo ""
-echo "URLs:"
-echo "• API Server: http://localhost:8080"
+echo "📱 Access FlexFlag:"
 echo "• UI:         http://localhost:3000"
-echo "• Edge:       http://localhost:8083"
+echo "• API:        http://localhost:8080"  
+echo "• Swagger:    http://localhost:8080/swagger"
+echo "• Health:     http://localhost:8080/health"
 echo ""
-echo "Default login:"
-echo "• Email:    admin@example.com"
-echo "• Password: secret"
+echo "🔐 Default login:"
+echo "• Email:      admin@example.com"
+echo "• Password:   secret"
 echo ""
-echo "📚 Check CLAUDE.md for development commands and architecture overview"
+echo "📋 Useful commands:"
+echo "• Stop services:           ./scripts/stop-dev.sh"
+echo "• Restart services:        ./scripts/restart-dev.sh"
+echo "• View API logs:           tail -f logs/api.log"
+echo "• View UI logs:            tail -f logs/ui.log"
+echo "• Run tests:               make test"
+echo ""
+echo "🆘 Having issues? Check: TROUBLESHOOTING.md"

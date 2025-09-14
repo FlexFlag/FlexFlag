@@ -1,20 +1,44 @@
--- Add segments table for user targeting
-CREATE TABLE IF NOT EXISTS segments (
+-- First, add project_id to flags table
+ALTER TABLE flags ADD COLUMN IF NOT EXISTS project_id UUID;
+ALTER TABLE flags ADD COLUMN IF NOT EXISTS rollout_config JSONB DEFAULT '{}';
+ALTER TABLE flags ADD COLUMN IF NOT EXISTS experiment_config JSONB DEFAULT '{}';
+
+-- Create default project if it doesn't exist
+INSERT INTO projects (key, name, description) 
+VALUES ('default', 'Default Project', 'Default project for existing flags')
+ON CONFLICT (key) DO NOTHING;
+
+-- Update existing flags to belong to default project
+UPDATE flags 
+SET project_id = (SELECT id FROM projects WHERE key = 'default' LIMIT 1)
+WHERE project_id IS NULL;
+
+-- Now add the foreign key constraint
+ALTER TABLE flags ADD CONSTRAINT flags_project_id_fkey 
+FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+
+-- Make project_id NOT NULL after updating existing data
+ALTER TABLE flags ALTER COLUMN project_id SET NOT NULL;
+
+-- Drop and recreate segments table with proper project reference
+DROP TABLE IF EXISTS segments CASCADE;
+CREATE TABLE segments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     key VARCHAR(100) NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     rules JSONB NOT NULL DEFAULT '[]',
+    environment VARCHAR(50) NOT NULL DEFAULT 'production',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(project_id, key)
+    UNIQUE(project_id, key, environment)
 );
 
 -- Add rollouts table for A/B testing and percentage rollouts
 CREATE TABLE IF NOT EXISTS rollouts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    flag_id UUID REFERENCES flags(id) ON DELETE CASCADE,
+    flag_id UUID NOT NULL REFERENCES flags(id) ON DELETE CASCADE,
     environment VARCHAR(100) NOT NULL,
     type VARCHAR(50) NOT NULL DEFAULT 'percentage', -- percentage, experiment, segment
     name VARCHAR(255) NOT NULL,
@@ -26,23 +50,6 @@ CREATE TABLE IF NOT EXISTS rollouts (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
--- Update flags table to include project_id and enhanced targeting
-ALTER TABLE flags ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id);
-ALTER TABLE flags ADD COLUMN IF NOT EXISTS rollout_config JSONB DEFAULT '{}';
-ALTER TABLE flags ADD COLUMN IF NOT EXISTS experiment_config JSONB DEFAULT '{}';
-
--- Update existing flags to belong to a default project
-INSERT INTO projects (key, name, description) 
-VALUES ('default', 'Default Project', 'Default project for existing flags')
-ON CONFLICT (key) DO NOTHING;
-
-UPDATE flags 
-SET project_id = (SELECT id FROM projects WHERE key = 'default')
-WHERE project_id IS NULL;
-
--- Make project_id NOT NULL after updating existing data
-ALTER TABLE flags ALTER COLUMN project_id SET NOT NULL;
 
 -- Add audit_logs table for tracking all changes
 CREATE TABLE IF NOT EXISTS audit_logs (
