@@ -44,7 +44,7 @@ cd FlexFlag
 
 **URLs:** API (http://localhost:8080) | UI (http://localhost:3000) | Swagger (http://localhost:8080/swagger)
 
-**Default login:** `admin@example.com` / `secret`
+**Default login:** `admin@example.com` / `admin123`
 
 ### 🎛️ Development Commands
 
@@ -160,7 +160,7 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
 
 Then login at http://localhost:3000 with:
 - Email: `admin@example.com`
-- Password: `secret123`
+- Password: `admin123`
 
 ## 🏗️ Project Structure
 
