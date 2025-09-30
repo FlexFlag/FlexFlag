@@ -49,7 +49,8 @@ import { ProjectProvider } from '@/contexts/ProjectContext';
 import { EnvironmentProvider, useEnvironment } from '@/contexts/EnvironmentContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import AuthGuard from '@/components/AuthGuard';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const drawerWidth = 280;
 
@@ -137,7 +138,7 @@ function NavigationContent() {
                     {item.children.map((child) => (
                       <ListItem
                         key={child.label}
-                        component="a"
+                        component={Link}
                         href={child.href}
                         sx={{
                           pl: 4,
@@ -170,7 +171,7 @@ function NavigationContent() {
               </>
             ) : (
               <ListItem
-                component="a"
+                component={Link}
                 href={item.href}
                 sx={{
                   borderRadius: 2,
@@ -207,6 +208,7 @@ function NavigationContent() {
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { mode, toggleMode } = useCustomTheme();
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   const [user, setUser] = useState<any>(null);
@@ -306,7 +308,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           >
             <MenuItem onClick={() => {
               setUserMenuAnchor(null);
-              window.location.href = '/profile';
+              router.push('/profile');
             }}>
               <ListItemIcon>
                 <PersonIcon fontSize="small" />
@@ -315,7 +317,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
             </MenuItem>
             <MenuItem onClick={() => {
               setUserMenuAnchor(null);
-              window.location.href = '/settings';
+              router.push('/settings');
             }}>
               <ListItemIcon>
                 <SettingsIcon fontSize="small" />
@@ -327,7 +329,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               setUserMenuAnchor(null);
               localStorage.removeItem('token');
               localStorage.removeItem('user');
-              window.location.href = '/login';
+              router.push('/login');
             }}>
               <ListItemIcon>
                 <LogoutIcon fontSize="small" />

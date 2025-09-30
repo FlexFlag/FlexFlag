@@ -20,7 +20,7 @@ import {
   ListItemButton,
   Collapse,
   Breadcrumbs,
-  Link,
+  Link as MuiLink,
   Tooltip,
 } from '@mui/material';
 import { useState, useEffect } from 'react';
@@ -51,7 +51,8 @@ import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useTheme } from '@mui/material/styles';
 import { useProject } from '@/contexts/ProjectContext';
 import { useEnvironment } from '@/contexts/EnvironmentContext';
-import { usePathname, useParams } from 'next/navigation';
+import { usePathname, useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { apiClient } from '@/lib/api';
 
 const drawerWidth = 280;
@@ -289,7 +290,7 @@ function NavigationContent({ project, collapsed, onToggleCollapse }: { project: 
                         {item.children.map((child) => (
                           <ListItem
                             key={child.label}
-                            component="a"
+                            component={Link}
                             href={getFullHref(child.href)}
                             sx={{
                               pl: 4,
@@ -307,8 +308,8 @@ function NavigationContent({ project, collapsed, onToggleCollapse }: { project: 
                               textDecoration: 'none',
                             }}
                           >
-                            <ListItemIcon sx={{ 
-                              color: 'inherit', 
+                            <ListItemIcon sx={{
+                              color: 'inherit',
                               minWidth: 36
                             }}>
                               {child.icon}
@@ -331,7 +332,7 @@ function NavigationContent({ project, collapsed, onToggleCollapse }: { project: 
                     {item.children.map((child) => (
                       <Tooltip key={child.label} title={child.label} placement="right">
                         <ListItem
-                          component="a"
+                          component={Link}
                           href={getFullHref(child.href)}
                           sx={{
                             borderRadius: 0,
@@ -349,8 +350,8 @@ function NavigationContent({ project, collapsed, onToggleCollapse }: { project: 
                             px: 1,
                           }}
                         >
-                          <ListItemIcon sx={{ 
-                            color: 'inherit', 
+                          <ListItemIcon sx={{
+                            color: 'inherit',
                             minWidth: 'auto',
                             '& > *': {
                               fontSize: '1.25rem'
@@ -368,7 +369,7 @@ function NavigationContent({ project, collapsed, onToggleCollapse }: { project: 
               collapsed ? (
                 <Tooltip title={item.label} placement="right">
                   <ListItem
-                    component="a"
+                    component={Link}
                     href={getFullHref(item.href)}
                     sx={{
                       borderRadius: 0,
@@ -386,8 +387,8 @@ function NavigationContent({ project, collapsed, onToggleCollapse }: { project: 
                       px: 1,
                     }}
                   >
-                    <ListItemIcon sx={{ 
-                      color: 'inherit', 
+                    <ListItemIcon sx={{
+                      color: 'inherit',
                       minWidth: 'auto',
                       '& > *': {
                         fontSize: '1.25rem'
@@ -399,7 +400,7 @@ function NavigationContent({ project, collapsed, onToggleCollapse }: { project: 
                 </Tooltip>
               ) : (
                 <ListItem
-                  component="a"
+                  component={Link}
                   href={getFullHref(item.href)}
                   sx={{
                     borderRadius: 2,
@@ -417,8 +418,8 @@ function NavigationContent({ project, collapsed, onToggleCollapse }: { project: 
                     px: 2,
                   }}
                 >
-                  <ListItemIcon sx={{ 
-                    color: 'inherit', 
+                  <ListItemIcon sx={{
+                    color: 'inherit',
                     minWidth: 40
                   }}>
                     {item.icon}
@@ -447,6 +448,7 @@ export default function ProjectLayout({
 }) {
   const { mode, toggleMode } = useCustomTheme();
   const theme = useTheme();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   // Initialize sidebar collapsed state from localStorage
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -550,12 +552,13 @@ export default function ProjectLayout({
                   }
                 }}
               >
-                <Link 
-                  href="/" 
-                  underline="hover" 
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                <MuiLink
+                  component={Link}
+                  href="/"
+                  underline="hover"
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
                     gap: 0.75,
                     color: 'text.secondary',
                     fontSize: '0.8rem',
@@ -572,13 +575,14 @@ export default function ProjectLayout({
                 >
                   <HomeIcon fontSize="small" />
                   Dashboard
-                </Link>
-                <Link 
-                  href="/projects" 
+                </MuiLink>
+                <MuiLink
+                  component={Link}
+                  href="/projects"
                   underline="hover"
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
                     gap: 0.75,
                     color: 'text.secondary',
                     fontSize: '0.8rem',
@@ -595,7 +599,7 @@ export default function ProjectLayout({
                 >
                   <ProjectIcon fontSize="small" />
                   Projects
-                </Link>
+                </MuiLink>
                 <Typography 
                   color="text.primary" 
                   sx={{ 
@@ -637,7 +641,7 @@ export default function ProjectLayout({
               {/* Back Button */}
               <IconButton
                 href="/projects"
-                sx={{ 
+                sx={{
                   color: 'text.secondary',
                   bgcolor: 'grey.50',
                   border: '1px solid',
@@ -651,7 +655,7 @@ export default function ProjectLayout({
                     borderColor: 'primary.200'
                   }
                 }}
-                component="a"
+                component={Link}
                 size="small"
               >
                 <ArrowBackIcon sx={{ fontSize: '1.1rem' }} />
@@ -686,7 +690,7 @@ export default function ProjectLayout({
             >
               <MenuItem onClick={() => {
                 setUserMenuAnchor(null);
-                window.location.href = '/profile';
+                router.push('/profile');
               }}>
                 <ListItemIcon>
                   <PersonIcon fontSize="small" />
@@ -695,7 +699,7 @@ export default function ProjectLayout({
               </MenuItem>
               <MenuItem onClick={() => {
                 setUserMenuAnchor(null);
-                window.location.href = '/settings';
+                router.push('/settings');
               }}>
                 <ListItemIcon>
                   <SettingsIcon fontSize="small" />
@@ -707,7 +711,7 @@ export default function ProjectLayout({
                 setUserMenuAnchor(null);
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
-                window.location.href = '/login';
+                router.push('/login');
               }}>
                 <ListItemIcon>
                   <LogoutIcon fontSize="small" />
