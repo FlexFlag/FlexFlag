@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Box, CircularProgress } from '@mui/material';
 
-const publicRoutes = ['/login', '/register'];
+const publicRoutes = ['/login', '/register', '/auth/google/callback'];
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
