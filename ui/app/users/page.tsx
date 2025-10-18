@@ -30,6 +30,9 @@ import {
   Tooltip,
   Switch,
   FormControlLabel,
+  Alert,
+  InputAdornment,
+  Snackbar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -40,7 +43,10 @@ import {
   Edit as EditorIcon,
   Visibility as ViewerIcon,
   Email as EmailIcon,
+  VpnKey as KeyIcon,
+  ContentCopy as CopyIcon,
 } from '@mui/icons-material';
+import { apiClient } from '@/lib/api';
 
 interface User {
   id: string;
@@ -53,57 +59,67 @@ interface User {
 }
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: '1',
-      email: 'admin@example.com',
-      full_name: 'Admin User',
-      role: 'admin',
-      is_active: true,
-      created_at: '2025-01-10T10:00:00Z',
-      last_login: '2025-01-10T14:30:00Z',
-    },
-    {
-      id: '2',
-      email: 'editor@example.com',
-      full_name: 'Editor User',
-      role: 'editor',
-      is_active: true,
-      created_at: '2025-01-09T15:22:00Z',
-      last_login: '2025-01-10T09:15:00Z',
-    },
-    {
-      id: '3',
-      email: 'viewer@example.com',
-      full_name: 'Viewer User',
-      role: 'viewer',
-      is_active: false,
-      created_at: '2025-01-08T11:45:00Z',
-    },
-  ]);
-
+  const [users, setUsers] = useState<User[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
     email: '',
     full_name: '',
+    password: '',
     role: 'viewer' as const,
     is_active: true,
   });
+  const [generatedPassword, setGeneratedPassword] = useState<string>('');
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [loading, setLoading] = useState(false);
 
-  const handleCreateUser = () => {
-    // In a real app, this would call the API
-    const newUser: User = {
-      id: Date.now().toString(),
-      email: formData.email,
-      full_name: formData.full_name,
-      role: formData.role,
-      is_active: formData.is_active,
-      created_at: new Date().toISOString(),
-    };
-    setUsers([...users, newUser]);
-    setOpenDialog(false);
-    resetForm();
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const data = await apiClient.getUsers();
+      setUsers(data);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+      setSnackbar({ open: true, message: 'Failed to load users', severity: 'error' });
+    }
+  };
+
+  const generatePassword = () => {
+    const length = 12;
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      password += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    setFormData({ ...formData, password });
+    return password;
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setSnackbar({ open: true, message: 'Password copied to clipboard', severity: 'success' });
+  };
+
+  const handleCreateUser = async () => {
+    setLoading(true);
+    try {
+      const response = await apiClient.createUser(formData);
+      setGeneratedPassword(response.password);
+      setShowPasswordDialog(true);
+      setOpenDialog(false);
+      await loadUsers();
+      resetForm();
+      setSnackbar({ open: true, message: 'User created successfully', severity: 'success' });
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      setSnackbar({ open: true, message: 'Failed to create user', severity: 'error' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEditUser = (user: User) => {
@@ -111,28 +127,60 @@ export default function UsersPage() {
     setFormData({
       email: user.email,
       full_name: user.full_name,
+      password: '',
       role: user.role,
       is_active: user.is_active,
     });
     setOpenDialog(true);
   };
 
-  const handleUpdateUser = () => {
-    if (selectedUser) {
-      setUsers(users.map(user => 
-        user.id === selectedUser.id 
-          ? { ...user, ...formData }
-          : user
-      ));
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return;
+
+    setLoading(true);
+    try {
+      await apiClient.updateUser(selectedUser.id, {
+        full_name: formData.full_name,
+        role: formData.role,
+        is_active: formData.is_active,
+      });
+      await loadUsers();
       setOpenDialog(false);
       setSelectedUser(null);
       resetForm();
+      setSnackbar({ open: true, message: 'User updated successfully', severity: 'success' });
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      setSnackbar({ open: true, message: 'Failed to update user', severity: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDeleteUser = (userId: string) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      setUsers(users.filter(user => user.id !== userId));
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+
+    try {
+      await apiClient.deleteUser(userId);
+      await loadUsers();
+      setSnackbar({ open: true, message: 'User deleted successfully', severity: 'success' });
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      setSnackbar({ open: true, message: 'Failed to delete user', severity: 'error' });
+    }
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    if (!window.confirm('Are you sure you want to reset this user\'s password?')) return;
+
+    try {
+      const response = await apiClient.resetUserPassword(userId);
+      setGeneratedPassword(response.password);
+      setShowPasswordDialog(true);
+      setSnackbar({ open: true, message: 'Password reset successfully', severity: 'success' });
+    } catch (error) {
+      console.error('Failed to reset password:', error);
+      setSnackbar({ open: true, message: 'Failed to reset password', severity: 'error' });
     }
   };
 
@@ -140,6 +188,7 @@ export default function UsersPage() {
     setFormData({
       email: '',
       full_name: '',
+      password: '',
       role: 'viewer',
       is_active: true,
     });
@@ -303,9 +352,9 @@ export default function UsersPage() {
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
-                      <Tooltip title="Send Invitation">
-                        <IconButton size="small">
-                          <EmailIcon />
+                      <Tooltip title="Reset Password">
+                        <IconButton size="small" onClick={() => handleResetPassword(user.id)}>
+                          <KeyIcon />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Edit User">
@@ -314,8 +363,8 @@ export default function UsersPage() {
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Delete User">
-                        <IconButton 
-                          size="small" 
+                        <IconButton
+                          size="small"
                           onClick={() => handleDeleteUser(user.id)}
                           color="error"
                         >
@@ -356,6 +405,31 @@ export default function UsersPage() {
                 onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
               />
             </Grid>
+            {!selectedUser && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Password (optional)"
+                  type="text"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Leave empty to auto-generate"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Button
+                          size="small"
+                          startIcon={<KeyIcon />}
+                          onClick={generatePassword}
+                        >
+                          Generate
+                        </Button>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+            )}
             <Grid item xs={12}>
               <FormControl fullWidth>
                 <InputLabel>Role</InputLabel>
@@ -391,14 +465,56 @@ export default function UsersPage() {
           }}>
             Cancel
           </Button>
-          <Button 
-            onClick={selectedUser ? handleUpdateUser : handleCreateUser} 
+          <Button
+            onClick={selectedUser ? handleUpdateUser : handleCreateUser}
             variant="contained"
+            disabled={loading}
           >
             {selectedUser ? 'Update User' : 'Add User'}
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Password Display Dialog */}
+      <Dialog open={showPasswordDialog} onClose={() => setShowPasswordDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Password Generated</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Please save this password securely. It will not be shown again.
+          </Alert>
+          <TextField
+            fullWidth
+            label="Generated Password"
+            value={generatedPassword}
+            InputProps={{
+              readOnly: true,
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton onClick={() => copyToClipboard(generatedPassword)}>
+                    <CopyIcon />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPasswordDialog(false)} variant="contained">
+            I have saved the password
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

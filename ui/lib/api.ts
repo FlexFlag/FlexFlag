@@ -1,6 +1,6 @@
 import { Flag, CreateFlagRequest, EvaluationRequest, EvaluationResponse, PerformanceStats, UltraFastStats } from '@/types';
 
-const API_BASE = '/api/v1';
+const API_BASE = 'http://localhost:8080/api/v1';
 
 class ApiClient {
   private getAuthToken(): string | null {
@@ -170,6 +170,31 @@ class ApiClient {
     return this.request<{flags: number, segments: number, rollouts: number}>(`/project-stats/${projectId}`);
   }
 
+  async getProjectMembers(projectId: string): Promise<any[]> {
+    const response = await this.request<{members: any[]}>(`/project-members/${projectId}`);
+    return response.members || [];
+  }
+
+  async addProjectMember(projectId: string, userId: string, role: string): Promise<{message: string}> {
+    return this.request<{message: string}>(`/project-members/${projectId}`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, role }),
+    });
+  }
+
+  async removeProjectMember(projectId: string, userId: string): Promise<{message: string}> {
+    return this.request<{message: string}>(`/project-members/${projectId}/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateProjectMemberRole(projectId: string, userId: string, role: string): Promise<{message: string}> {
+    return this.request<{message: string}>(`/project-members/${projectId}/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    });
+  }
+
   async getProjectEnvironments(projectSlug: string): Promise<any[]> {
     const response = await this.request<{environments: any[]}>(`/projects/${projectSlug}/environments`);
     return response.environments || [];
@@ -186,20 +211,44 @@ class ApiClient {
     return response.logs || [];
   }
 
-  // User Management (placeholder)
+  // User Management
   async getUsers(): Promise<any[]> {
-    // Mock data for now
-    return Promise.resolve([
-      {
-        id: '1',
-        email: 'admin@example.com',
-        full_name: 'Admin User',
-        role: 'admin',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        last_login: new Date().toISOString(),
-      }
-    ]);
+    const response = await this.request<{users: any[], total: number}>('/users');
+    return response.users || [];
+  }
+
+  async createUser(user: {email: string, full_name: string, password?: string, role?: string}): Promise<{user: any, password: string, message: string}> {
+    return this.request<{user: any, password: string, message: string}>('/users', {
+      method: 'POST',
+      body: JSON.stringify(user),
+    });
+  }
+
+  async updateUser(userId: string, updates: {full_name?: string, role?: string, is_active?: boolean}): Promise<any> {
+    return this.request<any>(`/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    return this.request<void>(`/users/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async resetUserPassword(userId: string): Promise<{message: string, password: string}> {
+    return this.request<{message: string, password: string}>(`/users/${userId}/reset-password`, {
+      method: 'POST',
+    });
+  }
+
+  // Profile Management
+  async updateProfile(full_name: string): Promise<any> {
+    return this.request<any>('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify({ full_name }),
+    });
   }
 
   // API Key Management
