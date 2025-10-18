@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Box,
@@ -17,6 +18,7 @@ import {
   Tab,
 } from '@mui/material';
 import { Visibility, VisibilityOff, Login as LoginIcon, PersonAdd } from '@mui/icons-material';
+import GoogleSignInButton from '@/components/GoogleSignInButton';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -36,6 +38,7 @@ function TabPanel(props: TabPanelProps) {
 
 export default function LoginPage() {
   const { login, register } = useAuth();
+  const searchParams = useSearchParams();
   const [tabValue, setTabValue] = useState(0);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,6 +47,24 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Check for OAuth errors in URL
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam) {
+      const errorMessages: Record<string, string> = {
+        invalid_state: 'OAuth state validation failed. Please try again.',
+        expired_state: 'OAuth session expired. Please try again.',
+        missing_code: 'Missing authorization code from Google.',
+        token_exchange_failed: 'Failed to exchange Google authorization code.',
+        user_info_failed: 'Failed to get user information from Google.',
+        email_not_verified: 'Your Google email is not verified.',
+        user_creation_failed: 'Failed to create user account.',
+        token_generation_failed: 'Failed to generate authentication token.',
+      };
+      setError(errorMessages[errorParam] || `OAuth error: ${errorParam}`);
+    }
+  }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,7 +179,16 @@ export default function LoginPage() {
               >
                 {isLoading ? 'Logging in...' : 'Login'}
               </Button>
-              <Box sx={{ textAlign: 'center' }}>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', my: 2 }}>
+                <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
+                <Typography sx={{ px: 2, color: 'text.secondary' }}>OR</Typography>
+                <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
+              </Box>
+
+              <GoogleSignInButton />
+
+              <Box sx={{ textAlign: 'center', mt: 2 }}>
                 <Link href="#" variant="body2">
                   Forgot password?
                 </Link>
