@@ -44,7 +44,7 @@ import {
   LightMode as LightModeIcon,
   Storage as StorageIcon,
 } from '@mui/icons-material';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ProjectProvider } from '@/contexts/ProjectContext';
 import { EnvironmentProvider, useEnvironment } from '@/contexts/EnvironmentContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
@@ -207,26 +207,14 @@ function NavigationContent() {
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { mode, toggleMode } = useCustomTheme();
+  const { user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
-  const [user, setUser] = useState<any>(null);
 
   // Check if we're in a project-specific route
   const isProjectRoute = pathname?.startsWith('/projects/') && pathname.split('/').length > 2;
-
-  useEffect(() => {
-    // Load user data from localStorage
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error('Error parsing user data:', e);
-      }
-    }
-  }, []);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
