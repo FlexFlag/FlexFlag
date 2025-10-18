@@ -100,6 +100,14 @@ func main() {
 	flagHandler.SetEdgeSyncHandler(edgeSyncHandler)
 	flagHandler.SetSSEHandler(sseHandler)
 	authHandler := handlers.NewAuthHandler(userRepo, jwtManager)
+	userHandler := handlers.NewUserHandler(userRepo)
+	oauthHandler := handlers.NewOAuthHandler(
+		userRepo,
+		jwtManager,
+		cfg.Auth.OAuth.Google.ClientID,
+		cfg.Auth.OAuth.Google.ClientSecret,
+		cfg.Auth.OAuth.Google.RedirectURL,
+	)
 	projectHandler := handlers.NewProjectHandler(projectRepo, flagRepo, segmentRepo, rolloutRepo)
 	segmentHandler := handlers.NewSegmentHandler(segmentRepo)
 	rolloutHandler := handlers.NewRolloutHandler(rolloutRepo)
@@ -129,6 +137,10 @@ func main() {
 		api.POST("/auth/register", authHandler.Register)
 		api.POST("/auth/login", authHandler.Login)
 		api.POST("/auth/refresh", authHandler.RefreshToken)
+
+		// OAuth endpoints (public)
+		api.GET("/auth/google/login", oauthHandler.GoogleLogin)
+		api.GET("/auth/google/callback", oauthHandler.GoogleCallback)
 		
 		// Protected authentication endpoints
 		authGroup := api.Group("/auth")
@@ -140,9 +152,13 @@ func main() {
 			authGroup.POST("/logout", authHandler.Logout)
 		}
 		
-		// Project statistics endpoint (must come before projects group to avoid conflicts)
+		// Project statistics and members endpoints (must come before projects group to avoid conflicts)
 		api.GET("/project-stats/:id", auth.AuthMiddleware(jwtManager), projectHandler.GetProjectStats)
-		
+		api.GET("/project-members/:id", auth.AuthMiddleware(jwtManager), projectHandler.GetProjectMembers)
+		api.POST("/project-members/:id", auth.AuthMiddleware(jwtManager), auth.RequireEditorOrAdmin(), projectHandler.AddProjectMember)
+		api.DELETE("/project-members/:id/:userId", auth.AuthMiddleware(jwtManager), auth.RequireEditorOrAdmin(), projectHandler.RemoveProjectMember)
+		api.PUT("/project-members/:id/:userId", auth.AuthMiddleware(jwtManager), auth.RequireEditorOrAdmin(), projectHandler.UpdateProjectMemberRole)
+
 		// Project management (require authentication)
 		projects := api.Group("/projects")
 		projects.Use(auth.AuthMiddleware(jwtManager))
@@ -152,7 +168,7 @@ func main() {
 			projects.GET("/:slug", projectHandler.GetProject)
 			projects.PUT("/:slug", auth.RequireEditorOrAdmin(), projectHandler.UpdateProject)
 			projects.DELETE("/:slug", auth.RequireAdmin(), projectHandler.DeleteProject)
-			
+
 			// Environment endpoints
 			projects.POST("/:slug/environments", auth.RequireEditorOrAdmin(), projectHandler.CreateEnvironment)
 			projects.GET("/:slug/environments", projectHandler.GetEnvironments)
@@ -232,6 +248,18 @@ func main() {
 			flags.POST("/:key/toggle", auth.RequireEditorOrAdmin(), flagHandler.ToggleFlag)
 		}
 		
+		// User management (require authentication and admin role)
+		users := api.Group("/users")
+		users.Use(auth.AuthMiddleware(jwtManager))
+		{
+			users.POST("", auth.RequireAdmin(), userHandler.CreateUser)
+			users.GET("", auth.RequireAdmin(), userHandler.ListUsers)
+			users.GET("/:id", auth.RequireAdmin(), userHandler.GetUser)
+			users.PUT("/:id", auth.RequireAdmin(), userHandler.UpdateUser)
+			users.DELETE("/:id", auth.RequireAdmin(), userHandler.DeleteUser)
+			users.POST("/:id/reset-password", auth.RequireAdmin(), userHandler.ResetPassword)
+		}
+
 		// Audit logs (require authentication)
 		audit := api.Group("/audit")
 		audit.Use(auth.AuthMiddleware(jwtManager))
