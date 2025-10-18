@@ -43,10 +43,21 @@ type RedisConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret     string   `mapstructure:"jwt_secret"`
-	APIKeys       []string `mapstructure:"api_keys"`
-	TokenExpiry   int      `mapstructure:"token_expiry"`
-	RefreshExpiry int      `mapstructure:"refresh_expiry"`
+	JWTSecret     string      `mapstructure:"jwt_secret"`
+	APIKeys       []string    `mapstructure:"api_keys"`
+	TokenExpiry   int         `mapstructure:"token_expiry"`
+	RefreshExpiry int         `mapstructure:"refresh_expiry"`
+	OAuth         OAuthConfig `mapstructure:"oauth"`
+}
+
+type OAuthConfig struct {
+	Google GoogleOAuthConfig `mapstructure:"google"`
+}
+
+type GoogleOAuthConfig struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL  string `mapstructure:"redirect_url"`
 }
 
 type LoggingConfig struct {
@@ -107,6 +118,9 @@ func setDefaults() {
 	viper.SetDefault("auth.jwt_secret", "your-secret-key")
 	viper.SetDefault("auth.token_expiry", 3600)
 	viper.SetDefault("auth.refresh_expiry", 86400)
+	viper.SetDefault("auth.oauth.google.client_id", "")
+	viper.SetDefault("auth.oauth.google.client_secret", "")
+	viper.SetDefault("auth.oauth.google.redirect_url", "http://localhost:8080/api/v1/auth/google/callback")
 
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "json")
