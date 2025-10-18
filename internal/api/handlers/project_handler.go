@@ -503,3 +503,144 @@ func (h *ProjectHandler) GetProjectStats(c *gin.Context) {
 		"rollouts": rolloutCount,
 	})
 }
+
+// GetProjectMembers godoc
+// @Summary Get project members
+// @Description Get all members of a project
+// @Tags projects
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Project ID"
+// @Success 200 {array} map[string]interface{}
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /projects/{id}/members [get]
+func (h *ProjectHandler) GetProjectMembers(c *gin.Context) {
+	projectID := c.Param("id")
+
+	members, err := h.projectRepo.GetProjectMembers(c.Request.Context(), projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get project members"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"members": members,
+	})
+}
+
+// AddProjectMember godoc
+// @Summary Add a member to a project
+// @Description Add a user to a project with a specific role
+// @Tags projects
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Project ID"
+// @Param member body map[string]string true "Member details"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /projects/{id}/members [post]
+func (h *ProjectHandler) AddProjectMember(c *gin.Context) {
+	projectID := c.Param("id")
+
+	var req struct {
+		UserID string `json:"user_id" binding:"required"`
+		Role   string `json:"role" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate role
+	if req.Role != "admin" && req.Role != "editor" && req.Role != "viewer" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role. Must be admin, editor, or viewer"})
+		return
+	}
+
+	if err := h.projectRepo.AddProjectMember(c.Request.Context(), projectID, req.UserID, req.Role); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add project member"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Member added successfully"})
+}
+
+// RemoveProjectMember godoc
+// @Summary Remove a member from a project
+// @Description Remove a user from a project
+// @Tags projects
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Project ID"
+// @Param userId path string true "User ID"
+// @Success 200 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /projects/{id}/members/{userId} [delete]
+func (h *ProjectHandler) RemoveProjectMember(c *gin.Context) {
+	projectID := c.Param("id")
+	userID := c.Param("userId")
+
+	if err := h.projectRepo.RemoveProjectMember(c.Request.Context(), projectID, userID); err != nil {
+		if err.Error() == "member not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Member not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove project member"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Member removed successfully"})
+}
+
+// UpdateProjectMemberRole godoc
+// @Summary Update a member's role
+// @Description Update the role of a project member
+// @Tags projects
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Project ID"
+// @Param userId path string true "User ID"
+// @Param role body map[string]string true "Role details"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /projects/{id}/members/{userId} [put]
+func (h *ProjectHandler) UpdateProjectMemberRole(c *gin.Context) {
+	projectID := c.Param("id")
+	userID := c.Param("userId")
+
+	var req struct {
+		Role string `json:"role" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate role
+	if req.Role != "admin" && req.Role != "editor" && req.Role != "viewer" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role. Must be admin, editor, or viewer"})
+		return
+	}
+
+	if err := h.projectRepo.UpdateProjectMemberRole(c.Request.Context(), projectID, userID, req.Role); err != nil {
+		if err.Error() == "member not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Member not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update member role"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Member role updated successfully"})
+}
