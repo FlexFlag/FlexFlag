@@ -413,11 +413,127 @@ func (r *ProjectRepository) DeleteEnvironment(ctx context.Context, id string) er
 	if err != nil {
 		return fmt.Errorf("failed to delete environment: %w", err)
 	}
-	
+
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
 		return fmt.Errorf("environment not found")
 	}
-	
+
+	return nil
+}
+
+// GetProjectMembers retrieves all members of a project with their user details
+func (r *ProjectRepository) GetProjectMembers(ctx context.Context, projectID string) ([]map[string]interface{}, error) {
+	query := `
+		SELECT
+			pm.id as member_id,
+			pm.role as member_role,
+			pm.created_at as joined_at,
+			u.id as user_id,
+			u.email,
+			u.full_name,
+			u.role as global_role
+		FROM project_members pm
+		JOIN users u ON pm.user_id = u.id
+		WHERE pm.project_id = $1
+		ORDER BY pm.created_at ASC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project members: %w", err)
+	}
+	defer rows.Close()
+
+	var members []map[string]interface{}
+	for rows.Next() {
+		var (
+			memberID    string
+			memberRole  string
+			joinedAt    time.Time
+			userID      string
+			email       string
+			fullName    string
+			globalRole  string
+		)
+
+		if err := rows.Scan(&memberID, &memberRole, &joinedAt, &userID, &email, &fullName, &globalRole); err != nil {
+			return nil, fmt.Errorf("failed to scan member: %w", err)
+		}
+
+		member := map[string]interface{}{
+			"member_id":   memberID,
+			"role":        memberRole,
+			"joined_at":   joinedAt,
+			"user_id":     userID,
+			"email":       email,
+			"full_name":   fullName,
+			"global_role": globalRole,
+		}
+		members = append(members, member)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating members: %w", err)
+	}
+
+	return members, nil
+}
+
+// AddProjectMember adds a user to a project with a specific role
+func (r *ProjectRepository) AddProjectMember(ctx context.Context, projectID, userID, role string) error {
+	memberID := uuid.New().String()
+	query := `
+		INSERT INTO project_members (id, project_id, user_id, role, created_at)
+		VALUES ($1, $2, $3, $4, NOW())
+		ON CONFLICT (project_id, user_id) DO UPDATE SET role = $4
+	`
+
+	_, err := r.db.ExecContext(ctx, query, memberID, projectID, userID, role)
+	if err != nil {
+		return fmt.Errorf("failed to add project member: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveProjectMember removes a user from a project
+func (r *ProjectRepository) RemoveProjectMember(ctx context.Context, projectID, userID string) error {
+	query := `
+		DELETE FROM project_members
+		WHERE project_id = $1 AND user_id = $2
+	`
+
+	result, err := r.db.ExecContext(ctx, query, projectID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to remove project member: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("member not found")
+	}
+
+	return nil
+}
+
+// UpdateProjectMemberRole updates the role of a project member
+func (r *ProjectRepository) UpdateProjectMemberRole(ctx context.Context, projectID, userID, role string) error {
+	query := `
+		UPDATE project_members
+		SET role = $1
+		WHERE project_id = $2 AND user_id = $3
+	`
+
+	result, err := r.db.ExecContext(ctx, query, role, projectID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update member role: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("member not found")
+	}
+
 	return nil
 }
