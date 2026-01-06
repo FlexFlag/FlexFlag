@@ -42,7 +42,7 @@ services:
 
   # Database Migrator (runs once)
   migrator:
-    image: ${DOCKER_REGISTRY}flexflag-migrator:${VERSION:-latest}
+    image: ${DOCKER_REGISTRY:-rizwan1998/}flexflag-migrator:${VERSION:-latest}
     pull_policy: ${PULL_POLICY:-missing}
     container_name: flexflag-migrator
     environment:
@@ -61,7 +61,7 @@ services:
 
   # Backend API Server
   api:
-    image: ${DOCKER_REGISTRY}flexflag-api:${VERSION:-latest}
+    image: ${DOCKER_REGISTRY:-rizwan1998/}flexflag-api:${VERSION:-latest}
     pull_policy: ${PULL_POLICY:-missing}
     container_name: flexflag-api
     ports:
@@ -122,7 +122,7 @@ services:
 
   # Frontend UI
   ui:
-    image: ${DOCKER_REGISTRY}flexflag-ui:${VERSION:-latest}
+    image: ${DOCKER_REGISTRY:-rizwan1998/}flexflag-ui:${VERSION:-latest}
     pull_policy: ${PULL_POLICY:-missing}
     container_name: flexflag-ui
     ports:
