@@ -172,11 +172,11 @@ function FlagCard({ flag, onEdit, onDelete, onToggle, onDuplicate, onViewExperim
             color={flag.enabled ? 'success' : 'default'}
           />
           {flag.variations && flag.variations.length > 0 && (
-            <Chip 
-              label={flag.type === 'variant' ? `${flag.variations.length} variants` : `${flag.variations.length} variations`}
-              size="small" 
+            <Chip
+              label={`${flag.variations.length} variations`}
+              size="small"
               variant="outlined"
-              color={flag.type === 'variant' ? 'success' : 'default'}
+              color="default"
             />
           )}
         </Box>
