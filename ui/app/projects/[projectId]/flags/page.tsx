@@ -121,11 +121,6 @@ function FlagCard({ flag, onEdit, onDelete, onToggle, onDuplicate, onViewExperim
             >
               {flag.name}
             </Typography>
-            {flag.type === 'variant' && (
-              <Tooltip title="A/B Test Experiment">
-                <ExperimentIcon sx={{ fontSize: 16, color: 'success.main' }} />
-              </Tooltip>
-            )}
           </Box>
           <IconButton size="small" onClick={handleClick}>
             <MoreVertIcon />
