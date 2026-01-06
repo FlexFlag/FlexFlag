@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { useEnvironment } from '@/contexts/EnvironmentContext';
+import { Flag } from '@/types';
 import {
   Box,
   Typography,
@@ -27,14 +28,6 @@ import {
   Speed as SpeedIcon,
   AccountTree as ProjectIcon,
 } from '@mui/icons-material';
-
-interface Flag {
-  id: string;
-  key: string;
-  name: string;
-  type: string;
-  enabled: boolean;
-}
 
 interface EvaluationRequest {
   flag_key: string;
