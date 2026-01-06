@@ -35,10 +35,14 @@ export interface TargetingRule {
 export interface TargetingConfig {
   rules: TargetingRule[];
   rollout?: {
+    type?: string;
     variations: {
       variation_id: string;
       weight: number;
     }[];
+    bucket_by?: string;
+    seed?: number;
+    sticky_bucketing?: boolean;
   };
   default_rule?: {
     variation: string;
