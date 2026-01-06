@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useEnvironment } from '@/contexts/EnvironmentContext';
 import { useParams } from 'next/navigation';
 import { apiClient } from '@/lib/api';
+import { Flag } from '@/types';
 import {
   Box,
   Card,
@@ -66,12 +67,6 @@ interface Rollout {
   status: 'draft' | 'active' | 'paused' | 'completed';
   created_at: string;
   updated_at: string;
-}
-
-interface Flag {
-  id: string;
-  key: string;
-  name: string;
 }
 
 export default function ProjectRolloutsPage() {
