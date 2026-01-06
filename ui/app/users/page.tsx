@@ -62,11 +62,17 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    email: string;
+    full_name: string;
+    password: string;
+    role: 'admin' | 'editor' | 'viewer';
+    is_active: boolean;
+  }>({
     email: '',
     full_name: '',
     password: '',
-    role: 'viewer' as const,
+    role: 'viewer',
     is_active: true,
   });
   const [generatedPassword, setGeneratedPassword] = useState<string>('');
