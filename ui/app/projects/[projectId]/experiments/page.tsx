@@ -72,6 +72,7 @@ interface VariantFlag {
       variations: Array<{ variation_id: string; weight: number }>;
       bucket_by: string;
       seed: number;
+      sticky_bucketing?: boolean;
     };
   };
   environment: string;
