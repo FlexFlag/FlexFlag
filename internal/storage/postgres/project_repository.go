@@ -78,26 +78,43 @@ func (r *ProjectRepository) GetByID(ctx context.Context, id string) (*types.Proj
 // GetBySlug retrieves a project by slug
 func (r *ProjectRepository) GetBySlug(ctx context.Context, slug string) (*types.Project, error) {
 	query := `
-		SELECT id, key, name, description, created_by, created_at, updated_at
+		SELECT id, key, name, description, created_by, is_active, settings, created_at, updated_at
 		FROM projects
 		WHERE key = $1
 	`
-	
+
 	project := &types.Project{}
-	
+	var createdBy sql.NullString
+	var description sql.NullString
+	var settingsJSON []byte
+
 	err := r.db.QueryRowContext(ctx, query, slug).Scan(
-		&project.ID, &project.Slug, &project.Name, &project.Description,
-		&project.CreatedBy, &project.CreatedAt, &project.UpdatedAt)
+		&project.ID, &project.Slug, &project.Name, &description,
+		&createdBy, &project.IsActive, &settingsJSON,
+		&project.CreatedAt, &project.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("project not found")
 		}
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
-	
-	project.IsActive = true // Default for existing projects
-	project.Settings = make(map[string]interface{}) // Default empty settings
-	
+
+	if description.Valid {
+		project.Description = description.String
+	}
+	if createdBy.Valid {
+		project.CreatedBy = createdBy.String
+	}
+
+	// Parse settings JSON
+	if len(settingsJSON) > 0 {
+		if err := json.Unmarshal(settingsJSON, &project.Settings); err != nil {
+			project.Settings = make(map[string]interface{})
+		}
+	} else {
+		project.Settings = make(map[string]interface{})
+	}
+
 	return project, nil
 }
 

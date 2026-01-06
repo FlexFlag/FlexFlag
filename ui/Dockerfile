@@ -18,7 +18,9 @@ COPY . .
 
 # Set build-time environment variables
 ARG NEXT_PUBLIC_API_URL
+ARG INTERNAL_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV INTERNAL_API_URL=${INTERNAL_API_URL:-http://api:8080}
 
 # Build the application
 RUN npm run build
