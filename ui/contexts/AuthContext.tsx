@@ -9,6 +9,8 @@ interface User {
   full_name: string;
   role: 'admin' | 'editor' | 'viewer';
   is_active: boolean;
+  created_at?: string;
+  last_login?: string;
 }
 
 interface AuthContextType {
