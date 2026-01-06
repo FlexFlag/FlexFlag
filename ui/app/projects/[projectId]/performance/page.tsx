@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { useEnvironment } from '@/contexts/EnvironmentContext';
+import { PerformanceStats, UltraFastStats } from '@/types';
 import {
   Box,
   Typography,
@@ -37,22 +38,6 @@ import {
   ExpandMore as ExpandMoreIcon,
   Analytics as AnalyticsIcon,
 } from '@mui/icons-material';
-
-interface PerformanceStats {
-  cache_hits?: number;
-  cache_misses?: number;
-  total_requests?: number;
-  average_evaluation_time_ms?: number;
-  p95_evaluation_time_ms?: number;
-  p99_evaluation_time_ms?: number;
-}
-
-interface UltraFastStats {
-  cached_flags?: number;
-  total_evaluations?: number;
-  cache_hit_rate?: number;
-  average_response_time_ns?: number;
-}
 
 interface LoadTestResult {
   test_type: string;
