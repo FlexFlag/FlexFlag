@@ -3,7 +3,9 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -11,12 +13,34 @@ import (
 	_ "github.com/lib/pq"
 )
 
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+func buildDatabaseURL() string {
+	host := getEnv("FLEXFLAG_DATABASE_HOST", "localhost")
+	port := getEnv("FLEXFLAG_DATABASE_PORT", "5432")
+	user := getEnv("FLEXFLAG_DATABASE_USERNAME", "flexflag")
+	password := getEnv("FLEXFLAG_DATABASE_PASSWORD", "flexflag")
+	dbname := getEnv("FLEXFLAG_DATABASE_DATABASE", "flexflag")
+	sslmode := getEnv("FLEXFLAG_DATABASE_SSL_MODE", "disable")
+
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		user, password, host, port, dbname, sslmode)
+}
+
 func main() {
-	var databaseURL = flag.String("database-url", "postgres://localhost/flexflag?sslmode=disable", "Database URL")
+	defaultDatabaseURL := buildDatabaseURL()
+	var databaseURL = flag.String("database-url", defaultDatabaseURL, "Database URL")
 	var migrationsPath = flag.String("migrations-path", "file://migrations", "Path to migrations directory")
 	var direction = flag.String("direction", "up", "Migration direction: up or down")
 	var forceVersion = flag.Int("force-version", -1, "Force migration version (use to fix dirty state)")
 	flag.Parse()
+
+	log.Printf("Connecting to database at %s", *databaseURL)
 
 	db, err := sql.Open("postgres", *databaseURL)
 	if err != nil {
