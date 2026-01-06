@@ -351,12 +351,12 @@ function EvaluationTester() {
                         Response Time
                       </Typography>
                       <Box display="flex" alignItems="center" gap={1}>
-                        <Typography 
-                          variant="h6" 
-                          fontWeight="bold" 
-                          color={`${getPerformanceColor(result.evaluation_time_ms)}.main`}
+                        <Typography
+                          variant="h6"
+                          fontWeight="bold"
+                          color={`${getPerformanceColor(result.evaluation_time_ms || 0)}.main`}
                         >
-                          {result.evaluation_time_ms.toFixed(3)}ms
+                          {(result.evaluation_time_ms || 0).toFixed(3)}ms
                         </Typography>
                         <Chip
                           size="small"
