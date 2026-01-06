@@ -90,4 +90,6 @@ export interface CreateFlagRequest {
   project_id?: string;
   variations?: Omit<Variation, 'id'>[];
   targeting?: TargetingConfig;
+  tags?: string[];
+  metadata?: Record<string, any>;
 }
