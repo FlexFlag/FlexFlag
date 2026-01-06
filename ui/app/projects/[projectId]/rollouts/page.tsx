@@ -81,10 +81,21 @@ export default function ProjectRolloutsPage() {
   const [openAnalyticsDialog, setOpenAnalyticsDialog] = useState(false);
   const [selectedRollout, setSelectedRollout] = useState<Rollout | null>(null);
   const [editingRollout, setEditingRollout] = useState<Rollout | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    flag_id: string;
+    environment: string;
+    type: 'percentage' | 'experiment' | 'segment';
+    name: string;
+    description: string;
+    percentage: number;
+    variations: Array<{ variation_id: string; weight: number }>;
+    sticky_bucketing: boolean;
+    bucket_by: string;
+    traffic_allocation: number;
+  }>({
     flag_id: '',
     environment: 'production',
-    type: 'percentage' as const,
+    type: 'percentage',
     name: '',
     description: '',
     percentage: 25,
