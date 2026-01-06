@@ -152,7 +152,7 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@example.com",
-    "password": "secret123",
+    "password": "admin123",
     "full_name": "Admin User",
     "role": "admin"
   }'
