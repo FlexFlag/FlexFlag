@@ -82,6 +82,10 @@ export interface UltraFastStats {
   preloaded_flags: number;
   cached_responses: number;
   preload_complete: boolean;
+  cached_flags?: number;
+  total_evaluations?: number;
+  cache_hit_rate?: number;
+  average_response_time_ns?: number;
 }
 
 export type Environment = 'production' | 'staging' | 'development';
