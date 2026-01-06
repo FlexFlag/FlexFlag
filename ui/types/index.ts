@@ -56,10 +56,12 @@ export interface EvaluationResponse {
   flag_key: string;
   value: any;
   variation?: string;
+  variation_id?: string;
   reason: string;
   rule_id?: string;
   default: boolean;
-  evaluation_time_ms: number;
+  match: boolean;
+  evaluation_time_ms?: number;
   timestamp: string;
 }
 

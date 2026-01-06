@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { useEnvironment } from '@/contexts/EnvironmentContext';
-import { Flag } from '@/types';
+import { Flag, EvaluationRequest, EvaluationResponse } from '@/types';
 import {
   Box,
   Typography,
@@ -28,22 +28,6 @@ import {
   Speed as SpeedIcon,
   AccountTree as ProjectIcon,
 } from '@mui/icons-material';
-
-interface EvaluationRequest {
-  flag_key: string;
-  user_id: string;
-  user_key?: string;
-  attributes?: Record<string, any>;
-}
-
-interface EvaluationResponse {
-  flag_key: string;
-  value: any;
-  variation_id?: string;
-  reason: string;
-  match: boolean;
-  evaluation_time_ms?: number;
-}
 
 export default function ProjectEvaluationsPage() {
   const params = useParams();
