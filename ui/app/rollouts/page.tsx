@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useProject } from '@/contexts/ProjectContext';
 import { useEnvironment } from '@/contexts/EnvironmentContext';
+import { Flag } from '@/types';
 import {
   Box,
   Card,
@@ -68,12 +69,6 @@ interface Rollout {
   updated_at: string;
 }
 
-interface Flag {
-  id: string;
-  key: string;
-  name: string;
-}
-
 export default function RolloutsPage() {
   const { currentProject } = useProject();
   const { currentEnvironment } = useEnvironment();
@@ -84,10 +79,21 @@ export default function RolloutsPage() {
   const [openAnalyticsDialog, setOpenAnalyticsDialog] = useState(false);
   const [selectedRollout, setSelectedRollout] = useState<Rollout | null>(null);
   const [editingRollout, setEditingRollout] = useState<Rollout | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    flag_id: string;
+    environment: string;
+    type: 'percentage' | 'experiment' | 'segment';
+    name: string;
+    description: string;
+    percentage: number;
+    variations: Array<{ variation_id: string; weight: number }>;
+    sticky_bucketing: boolean;
+    bucket_by: string;
+    traffic_allocation: number;
+  }>({
     flag_id: '',
     environment: currentEnvironment || 'production',
-    type: 'percentage' as const,
+    type: 'percentage',
     name: '',
     description: '',
     percentage: 25,
