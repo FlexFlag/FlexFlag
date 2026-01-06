@@ -205,12 +205,6 @@ function FlagCard({ flag, onEdit, onDelete, onToggle, onDuplicate, onViewExperim
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        {flag.type === 'variant' && onViewExperiment && (
-          <MenuItem onClick={() => { onViewExperiment(flag); handleClose(); }}>
-            <ExperimentIcon sx={{ mr: 1 }} fontSize="small" />
-            View Experiment
-          </MenuItem>
-        )}
         <MenuItem onClick={() => { onEdit(flag); handleClose(); }}>
           <EditIcon sx={{ mr: 1 }} fontSize="small" />
           Edit
