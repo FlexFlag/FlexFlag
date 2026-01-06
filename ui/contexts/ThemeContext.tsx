@@ -139,7 +139,7 @@ const createAppTheme = (mode: ThemeMode) => createTheme({
   shape: {
     borderRadius: 12,
   },
-  shadows: mode === 'light' ? [
+  shadows: (mode === 'light' ? [
     'none',
     '0px 1px 2px 0px rgba(0, 0, 0, 0.05)',
     '0px 1px 3px 0px rgba(0, 0, 0, 0.1), 0px 1px 2px 0px rgba(0, 0, 0, 0.06)',
@@ -157,7 +157,7 @@ const createAppTheme = (mode: ThemeMode) => createTheme({
     '0px 20px 25px -5px rgba(0, 0, 0, 0.4), 0px 10px 10px -5px rgba(0, 0, 0, 0.16)',
     '0px 25px 50px -12px rgba(0, 0, 0, 0.6)',
     ...Array(18).fill('0px 25px 50px -12px rgba(0, 0, 0, 0.6)'),
-  ],
+  ]) as any,
   components: {
     MuiButton: {
       styleOverrides: {
