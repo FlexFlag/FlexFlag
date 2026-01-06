@@ -84,13 +84,8 @@ export default function ProjectSegmentsPage() {
     environment: 'production',
     rules: [{ attribute: '', operator: 'equals', values: [''] }],
   });
-  const [testData, setTestData] = useState({
+  const [testData, setTestData] = useState<{[key: string]: string}>({
     user_id: '',
-    email: '',
-    country: '',
-    subscription_plan: '',
-    account_age_days: '',
-    beta_opt_in: '',
   });
 
   // Fetch project data
@@ -177,9 +172,12 @@ export default function ProjectSegmentsPage() {
 
   const handleTestSegment = async () => {
     if (!selectedSegment) return;
-    
+
     try {
       const token = localStorage.getItem('token');
+      // Extract user_id and build attributes object from the rest
+      const { user_id, ...attributes } = testData;
+
       const response = await fetch('http://localhost:8080/api/v1/segments/evaluate', {
         method: 'POST',
         headers: {
@@ -189,19 +187,13 @@ export default function ProjectSegmentsPage() {
         body: JSON.stringify({
           project_id: projectId,
           segment_key: selectedSegment.key,
-          user_key: testData.user_id || 'test_user',
-          user_id: testData.user_id,
-          attributes: {
-            email: testData.email,
-            country: testData.country,
-            subscription_plan: testData.subscription_plan,
-            account_age_days: testData.account_age_days,
-            beta_opt_in: testData.beta_opt_in,
-          },
+          user_key: user_id || 'test_user',
+          user_id: user_id || 'test_user',
+          attributes: attributes,
           environment: currentEnvironment,
         }),
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         setTestResult(result);
@@ -379,19 +371,21 @@ export default function ProjectSegmentsPage() {
                     </Typography>
                     <Box>
                       <Tooltip title="Test Segment">
-                        <IconButton 
-                          size="small" 
+                        <IconButton
+                          size="small"
                           onClick={() => {
                             setSelectedSegment(segment);
                             setTestResult(null);
-                            setTestData({
-                              user_id: '',
-                              email: '',
-                              country: '',
-                              subscription_plan: '',
-                              account_age_days: '',
-                              beta_opt_in: '',
-                            });
+                            // Initialize testData with attributes from segment rules
+                            const initialData: {[key: string]: string} = { user_id: '' };
+                            if (segment.rules) {
+                              segment.rules.forEach(rule => {
+                                if (rule.attribute && !initialData[rule.attribute]) {
+                                  initialData[rule.attribute] = '';
+                                }
+                              });
+                            }
+                            setTestData(initialData);
                             setOpenTestDialog(true);
                           }}
                         >
@@ -558,57 +552,92 @@ export default function ProjectSegmentsPage() {
       <Dialog open={openTestDialog} onClose={() => setOpenTestDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>Test Segment: {selectedSegment?.name}</DialogTitle>
         <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} md={6}>
+          <Alert severity="info" sx={{ mb: 2, mt: 1 }}>
+            Enter values for the attributes used in this segment's targeting rules. The test will evaluate whether the user matches the segment based on these values.
+          </Alert>
+
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
               <TextField
                 fullWidth
                 label="User ID"
-                value={testData.user_id}
+                value={testData.user_id || ''}
                 onChange={(e) => setTestData({ ...testData, user_id: e.target.value })}
+                helperText="Required - Identifier for the user being tested"
               />
             </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Email"
-                value={testData.email}
-                onChange={(e) => setTestData({ ...testData, email: e.target.value })}
-              />
+
+            {/* Show targeting rules */}
+            {selectedSegment && selectedSegment.rules && selectedSegment.rules.length > 0 && (
+              <>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 2, mb: 1 }}>
+                    Targeting Rules Attributes:
+                  </Typography>
+                </Grid>
+                {/* Get unique attributes from rules */}
+                {Array.from(new Set(selectedSegment.rules.map(rule => rule.attribute))).map((attribute) => {
+                  const rule = selectedSegment.rules.find(r => r.attribute === attribute);
+                  return (
+                    <Grid item xs={12} md={6} key={attribute}>
+                      <TextField
+                        fullWidth
+                        label={attribute.charAt(0).toUpperCase() + attribute.slice(1).replace(/_/g, ' ')}
+                        value={testData[attribute] || ''}
+                        onChange={(e) => setTestData({ ...testData, [attribute]: e.target.value })}
+                        helperText={rule ? `Operator: ${rule.operator}${rule.values?.length ? `, Expected: ${rule.values.join(', ')}` : ''}` : ''}
+                      />
+                    </Grid>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Option to add custom attributes */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 2, mb: 1 }}>
+                Additional Attributes (Optional):
+              </Typography>
             </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Country"
-                value={testData.country}
-                onChange={(e) => setTestData({ ...testData, country: e.target.value })}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Subscription Plan"
-                value={testData.subscription_plan}
-                onChange={(e) => setTestData({ ...testData, subscription_plan: e.target.value })}
-                placeholder="premium, basic, etc."
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Account Age (Days)"
-                value={testData.account_age_days}
-                onChange={(e) => setTestData({ ...testData, account_age_days: e.target.value })}
-                type="number"
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Beta Opt-in"
-                value={testData.beta_opt_in}
-                onChange={(e) => setTestData({ ...testData, beta_opt_in: e.target.value })}
-                placeholder="true, false"
-              />
+            {Object.keys(testData)
+              .filter(key => key !== 'user_id' && (!selectedSegment?.rules || !selectedSegment.rules.some(r => r.attribute === key)))
+              .map((key) => (
+                <Grid item xs={12} md={6} key={key}>
+                  <TextField
+                    fullWidth
+                    label={key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}
+                    value={testData[key] || ''}
+                    onChange={(e) => setTestData({ ...testData, [key]: e.target.value })}
+                    InputProps={{
+                      endAdornment: (
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            const newData = { ...testData };
+                            delete newData[key];
+                            setTestData(newData);
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      )
+                    }}
+                  />
+                </Grid>
+              ))}
+            <Grid item xs={12}>
+              <Button
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={() => {
+                  const attrName = prompt('Enter attribute name:');
+                  if (attrName && !testData[attrName]) {
+                    setTestData({ ...testData, [attrName]: '' });
+                  }
+                }}
+              >
+                Add Custom Attribute
+              </Button>
             </Grid>
           </Grid>
 

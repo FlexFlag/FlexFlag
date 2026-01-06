@@ -88,6 +88,7 @@ export default function ProjectExperimentsPage() {
   const [experiments, setExperiments] = useState<VariantFlag[]>([]);
   const [loading, setLoading] = useState(false);
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
   const [openTestDialog, setOpenTestDialog] = useState(false);
   const [selectedExperiment, setSelectedExperiment] = useState<VariantFlag | null>(null);
   const [testResult, setTestResult] = useState<any>(null);
@@ -264,7 +265,7 @@ export default function ProjectExperimentsPage() {
           'Authorization': `Bearer ${token}`,
         },
       });
-      
+
       if (response.ok) {
         fetchExperiments();
       } else {
@@ -273,6 +274,91 @@ export default function ProjectExperimentsPage() {
       }
     } catch (error) {
       console.error('Error toggling experiment:', error);
+    }
+  };
+
+  const handleOpenEditDialog = (experiment: VariantFlag) => {
+    setSelectedExperiment(experiment);
+    // Populate form with experiment data
+    setFormData({
+      key: experiment.key,
+      name: experiment.name,
+      description: experiment.description || '',
+      default: experiment.default,
+      variations: experiment.variations?.map(v => {
+        const rolloutVar = experiment.targeting?.rollout?.variations?.find(
+          rv => rv.variation_id === v.id
+        );
+        return {
+          id: v.id,
+          name: v.name,
+          description: v.description || '',
+          value: typeof v.value === 'string' ? v.value : JSON.stringify(v.value),
+          weight: rolloutVar?.weight || 50000
+        };
+      }) || [],
+      seed: experiment.targeting?.rollout?.seed || Math.floor(Math.random() * 10000),
+      stickyBucketing: experiment.targeting?.rollout?.sticky_bucketing || false,
+    });
+    setOpenEditDialog(true);
+  };
+
+  const handleUpdateExperiment = async () => {
+    if (!selectedExperiment || !projectId) return;
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const experimentData = {
+        key: formData.key,
+        name: formData.name,
+        description: formData.description,
+        type: 'variant',
+        enabled: selectedExperiment.enabled,
+        default: formData.default || formData.variations[0].id,
+        project_id: projectId,
+        variations: formData.variations.map(v => ({
+          id: v.id,
+          name: v.name,
+          description: v.description,
+          value: v.value || `{"variant": "${v.id}"}`,
+          weight: v.weight
+        })),
+        targeting: {
+          rollout: {
+            type: 'percentage',
+            bucket_by: 'user_id',
+            seed: formData.seed,
+            sticky_bucketing: formData.stickyBucketing,
+            variations: formData.variations.map(v => ({
+              variation_id: v.id,
+              weight: v.weight
+            }))
+          }
+        }
+      };
+
+      const response = await fetch(`http://localhost:8080/api/v1/flags/${selectedExperiment.key}?project_id=${projectId}&environment=${currentEnvironment}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(experimentData),
+      });
+
+      if (response.ok) {
+        setOpenEditDialog(false);
+        fetchExperiments();
+        alert('Experiment updated successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(`Error updating experiment: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error('Error updating experiment:', error);
+      alert('Failed to update experiment. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -498,6 +584,15 @@ export default function ProjectExperimentsPage() {
                     </Box>
                     
                     <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Tooltip title="Edit Variations">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenEditDialog(experiment)}
+                          color="primary"
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="Test Experiment">
                         <IconButton
                           size="small"
@@ -759,6 +854,146 @@ export default function ProjectExperimentsPage() {
           <Button onClick={() => { setOpenCreateDialog(false); resetForm(); }}>Cancel</Button>
           <Button onClick={handleCreateExperiment} variant="contained" disabled={loading}>
             {loading ? 'Creating...' : 'Create Experiment'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Experiment Dialog */}
+      <Dialog open={openEditDialog} onClose={() => { setOpenEditDialog(false); }} maxWidth="md" fullWidth>
+        <DialogTitle>Edit Experiment: {selectedExperiment?.name}</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Experiment Name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Default Variation"
+                value={formData.default}
+                onChange={(e) => setFormData({ ...formData, default: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                multiline
+                rows={2}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Random Seed"
+                type="number"
+                value={formData.seed}
+                onChange={(e) => setFormData({ ...formData, seed: parseInt(e.target.value) || 0 })}
+                helperText="For consistent bucketing"
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.stickyBucketing}
+                    onChange={(e) => setFormData({ ...formData, stickyBucketing: e.target.checked })}
+                  />
+                }
+                label="Sticky Bucketing"
+              />
+            </Grid>
+          </Grid>
+
+          <Divider sx={{ my: 3 }} />
+
+          <Typography variant="h6" gutterBottom>
+            Edit Variations ({formData.variations.length})
+          </Typography>
+
+          {/* Weight Distribution Warning */}
+          {getTotalWeight() !== 100000 && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Total weight is {getTotalWeight().toLocaleString()} but should be 100,000 for proper distribution.
+            </Alert>
+          )}
+
+          {formData.variations.map((variation, index) => (
+            <Box key={index} sx={{ mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Variation Name"
+                    value={variation.name}
+                    onChange={(e) => updateVariation(index, 'name', e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Weight"
+                    type="number"
+                    value={variation.weight}
+                    onChange={(e) => updateVariation(index, 'weight', parseInt(e.target.value) || 0)}
+                    helperText={`${((variation.weight / getTotalWeight()) * 100).toFixed(1)}%`}
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                    <Button
+                      size="small"
+                      onClick={() => removeVariation(index)}
+                      disabled={formData.variations.length <= 2}
+                      color="error"
+                    >
+                      Remove
+                    </Button>
+                  </Box>
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Description"
+                    value={variation.description}
+                    onChange={(e) => updateVariation(index, 'description', e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Variation Value (JSON)"
+                    value={variation.value}
+                    onChange={(e) => updateVariation(index, 'value', e.target.value)}
+                    multiline
+                    rows={2}
+                    helperText="JSON value returned when this variation is selected"
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+          ))}
+
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={addVariation}
+            sx={{ mb: 2 }}
+          >
+            Add Variation
+          </Button>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenEditDialog(false)}>Cancel</Button>
+          <Button onClick={handleUpdateExperiment} variant="contained" disabled={loading}>
+            {loading ? 'Updating...' : 'Update Experiment'}
           </Button>
         </DialogActions>
       </Dialog>

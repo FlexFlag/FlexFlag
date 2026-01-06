@@ -302,6 +302,27 @@ func (h *FlagHandler) UpdateFlag(c *gin.Context) {
 	existingFlag.Tags = req.Tags
 	existingFlag.Metadata = req.Metadata
 
+	// Update variations if provided
+	if req.Variations != nil {
+		var variations []types.Variation
+		for _, sv := range req.Variations {
+			valueBytes, _ := json.Marshal(sv.Value)
+			variations = append(variations, types.Variation{
+				ID:          sv.ID,
+				Name:        sv.Name,
+				Description: sv.Description,
+				Value:       valueBytes,
+				Weight:      sv.Weight,
+			})
+		}
+		existingFlag.Variations = variations
+	}
+
+	// Update targeting if provided
+	if req.Targeting != nil {
+		existingFlag.Targeting = req.Targeting
+	}
+
 	if err := h.repo.Update(c.Request.Context(), existingFlag); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
