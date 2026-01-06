@@ -119,7 +119,7 @@ export const theme = createTheme({
     '0px 20px 25px -5px rgba(0, 0, 0, 0.1), 0px 10px 10px -5px rgba(0, 0, 0, 0.04)',
     '0px 25px 50px -12px rgba(0, 0, 0, 0.25)',
     ...Array(18).fill('0px 25px 50px -12px rgba(0, 0, 0, 0.25)'),
-  ],
+  ] as any,
   components: {
     MuiButton: {
       styleOverrides: {
