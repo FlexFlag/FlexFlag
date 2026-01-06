@@ -1,0 +1,153 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: flexflag-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-flexflag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flexflag}
+      POSTGRES_DB: ${POSTGRES_DB:-flexflag}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flexflag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flexflag-network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: flexflag-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flexflag-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Database Migrator (runs once)
+  migrator:
+    image: ${DOCKER_REGISTRY:-}flexflag-migrator:${VERSION:-latest}
+    container_name: flexflag-migrator
+    environment:
+      FLEXFLAG_DATABASE_HOST: postgres
+      FLEXFLAG_DATABASE_PORT: 5432
+      FLEXFLAG_DATABASE_USERNAME: ${POSTGRES_USER:-flexflag}
+      FLEXFLAG_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-flexflag}
+      FLEXFLAG_DATABASE_DATABASE: ${POSTGRES_DB:-flexflag}
+      FLEXFLAG_DATABASE_SSL_MODE: ${DATABASE_SSL_MODE:-disable}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - flexflag-network
+    restart: "no"
+
+  # Backend API Server
+  api:
+    image: ${DOCKER_REGISTRY:-}flexflag-api:${VERSION:-latest}
+    container_name: flexflag-api
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      # Database
+      FLEXFLAG_DATABASE_HOST: postgres
+      FLEXFLAG_DATABASE_PORT: 5432
+      FLEXFLAG_DATABASE_USERNAME: ${POSTGRES_USER:-flexflag}
+      FLEXFLAG_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-flexflag}
+      FLEXFLAG_DATABASE_DATABASE: ${POSTGRES_DB:-flexflag}
+      FLEXFLAG_DATABASE_SSL_MODE: ${DATABASE_SSL_MODE:-disable}
+      FLEXFLAG_DATABASE_MAX_CONNS: ${DATABASE_MAX_CONNS:-25}
+      FLEXFLAG_DATABASE_MIN_CONNS: ${DATABASE_MIN_CONNS:-5}
+
+      # Redis
+      FLEXFLAG_REDIS_HOST: redis
+      FLEXFLAG_REDIS_PORT: 6379
+      FLEXFLAG_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+
+      # Server
+      FLEXFLAG_SERVER_HOST: 0.0.0.0
+      FLEXFLAG_SERVER_PORT: 8080
+      FLEXFLAG_SERVER_DEBUG: ${DEBUG:-false}
+
+      # CORS
+      FLEXFLAG_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+
+      # JWT
+      FLEXFLAG_JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      FLEXFLAG_JWT_EXPIRY: ${JWT_EXPIRY:-24h}
+
+      # OAuth (Google)
+      FLEXFLAG_AUTH_OAUTH_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      FLEXFLAG_AUTH_OAUTH_GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      FLEXFLAG_AUTH_OAUTH_GOOGLE_REDIRECT_URL: ${GOOGLE_REDIRECT_URL:-http://localhost:8080/api/v1/auth/google/callback}
+
+      # Performance
+      FLEXFLAG_CACHE_ENABLED: ${CACHE_ENABLED:-true}
+      FLEXFLAG_CACHE_TTL: ${CACHE_TTL:-300}
+      FLEXFLAG_METRICS_ENABLED: ${METRICS_ENABLED:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - flexflag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend UI
+  ui:
+    image: ${DOCKER_REGISTRY:-}flexflag-ui:${VERSION:-latest}
+    container_name: flexflag-ui
+    ports:
+      - "${UI_PORT:-3000}:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+      - NODE_ENV=production
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - flexflag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  flexflag-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

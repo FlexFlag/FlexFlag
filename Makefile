@@ -64,13 +64,66 @@ docker-build: ## Build Docker image
 	@echo "Building Docker image..."
 	@docker build -t ${APP_NAME}:${VERSION} -t ${APP_NAME}:latest .
 
+docker-build-all: ## Build all Docker images (API, UI, Migrator)
+	@echo "Building all Docker images..."
+	@docker build -f Dockerfile.api -t ${DOCKER_USERNAME}${APP_NAME}-api:${VERSION} -t ${DOCKER_USERNAME}${APP_NAME}-api:latest .
+	@docker build -f Dockerfile.migrator -t ${DOCKER_USERNAME}${APP_NAME}-migrator:${VERSION} -t ${DOCKER_USERNAME}${APP_NAME}-migrator:latest .
+	@cd ui && docker build -t ${DOCKER_USERNAME}${APP_NAME}-ui:${VERSION} -t ${DOCKER_USERNAME}${APP_NAME}-ui:latest .
+	@echo "✅ All images built successfully!"
+
+docker-tag: ## Tag images for release (VERSION=x.x.x required)
+	@echo "Tagging images for version ${VERSION}..."
+	@docker tag ${DOCKER_USERNAME}${APP_NAME}-api:latest ${DOCKER_USERNAME}${APP_NAME}-api:${VERSION}
+	@docker tag ${DOCKER_USERNAME}${APP_NAME}-ui:latest ${DOCKER_USERNAME}${APP_NAME}-ui:${VERSION}
+	@docker tag ${DOCKER_USERNAME}${APP_NAME}-migrator:latest ${DOCKER_USERNAME}${APP_NAME}-migrator:${VERSION}
+
+docker-push-all: ## Push all images to Docker Hub (DOCKER_USERNAME required)
+	@echo "Pushing images to Docker Hub..."
+	@docker push ${DOCKER_USERNAME}${APP_NAME}-api:${VERSION}
+	@docker push ${DOCKER_USERNAME}${APP_NAME}-api:latest
+	@docker push ${DOCKER_USERNAME}${APP_NAME}-ui:${VERSION}
+	@docker push ${DOCKER_USERNAME}${APP_NAME}-ui:latest
+	@docker push ${DOCKER_USERNAME}${APP_NAME}-migrator:${VERSION}
+	@docker push ${DOCKER_USERNAME}${APP_NAME}-migrator:latest
+	@echo "✅ All images pushed successfully!"
+	@echo "📦 Published images:"
+	@echo "   - ${DOCKER_USERNAME}${APP_NAME}-api:${VERSION}"
+	@echo "   - ${DOCKER_USERNAME}${APP_NAME}-ui:${VERSION}"
+	@echo "   - ${DOCKER_USERNAME}${APP_NAME}-migrator:${VERSION}"
+
+docker-pull-all: ## Pull all images from Docker Hub (DOCKER_USERNAME required)
+	@echo "Pulling images from Docker Hub..."
+	@docker pull ${DOCKER_USERNAME}${APP_NAME}-api:${VERSION}
+	@docker pull ${DOCKER_USERNAME}${APP_NAME}-ui:${VERSION}
+	@docker pull ${DOCKER_USERNAME}${APP_NAME}-migrator:${VERSION}
+
 docker-run: ## Run Docker container
 	@echo "Running Docker container..."
 	@docker-compose up -d
 
+docker-prod-up: ## Start production stack
+	@echo "Starting production stack..."
+	@docker-compose -f docker-compose.prod.yml up -d
+	@echo "✅ FlexFlag is running!"
+	@echo "🌐 Frontend: http://localhost:${UI_PORT:-3000}"
+	@echo "🚀 API: http://localhost:${API_PORT:-8080}"
+	@echo "📖 Docs: http://localhost:${API_PORT:-8080}/swagger/index.html"
+
+docker-prod-down: ## Stop production stack
+	@echo "Stopping production stack..."
+	@docker-compose -f docker-compose.prod.yml down
+
+docker-logs: ## View Docker logs
+	@docker-compose -f docker-compose.prod.yml logs -f
+
 docker-stop: ## Stop Docker containers
 	@echo "Stopping Docker containers..."
 	@docker-compose down
+
+docker-clean: ## Clean Docker resources
+	@echo "Cleaning Docker resources..."
+	@docker-compose -f docker-compose.prod.yml down -v
+	@docker system prune -f
 
 migrate-up: ## Run database migrations up
 	@go run cmd/migrator/main.go -database-url="postgres://flexflag:flexflag@localhost:5433/flexflag?sslmode=disable" -direction=up
