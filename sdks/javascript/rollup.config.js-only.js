@@ -4,12 +4,12 @@ import typescript from '@rollup/plugin-typescript';
 
 const external = ['axios', 'eventemitter3', 'lru-cache', 'react', 'react/jsx-runtime', 'vue'];
 
-export default [
+const createBuildConfig = (input, outputName) => [
   // CommonJS build
   {
-    input: 'src/index.ts',
+    input,
     output: {
-      file: 'dist/index.js',
+      file: `dist/${outputName}.js`,
       format: 'cjs',
       sourcemap: true,
       exports: 'named'
@@ -28,12 +28,11 @@ export default [
       })
     ]
   },
-  
   // ES Module build
   {
-    input: 'src/index.ts',
+    input,
     output: {
-      file: 'dist/index.esm.js',
+      file: `dist/${outputName}.esm.js`,
       format: 'esm',
       sourcemap: true
     },
@@ -51,4 +50,13 @@ export default [
       })
     ]
   }
+];
+
+export default [
+  // Core SDK (no React/Vue)
+  ...createBuildConfig('src/index.ts', 'index'),
+  // React integration
+  ...createBuildConfig('src/index-react.ts', 'react'),
+  // Vue integration
+  ...createBuildConfig('src/index-vue.ts', 'vue')
 ];

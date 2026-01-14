@@ -1,179 +1,248 @@
 # FlexFlag JavaScript/TypeScript SDK
 
-High-performance feature flag client for JavaScript and TypeScript applications with local caching and offline support.
+High-performance feature flag SDK for JavaScript and TypeScript with local caching, offline support, and framework integrations.
+
+## Features
+
+- 🚀 **High Performance** - Local caching with configurable TTL
+- 🔌 **Multiple Connection Modes** - WebSocket streaming, polling, or offline
+- 📦 **Framework Integrations** - React hooks and Vue 3 composables
+- 💾 **Offline Support** - Works without network connection using default flags
+- 🎯 **Type Safe** - Full TypeScript support with type definitions
+- ⚡ **Batch Evaluation** - Evaluate multiple flags in a single request
+- 🔄 **Real-time Updates** - Automatic flag updates via WebSocket
+- 📊 **Metrics Tracking** - Built-in performance and usage metrics
 
 ## Installation
 
+### Backend/Node.js
 ```bash
 npm install flexflag-client
 ```
 
+### With React
+```bash
+npm install flexflag-client react
+```
+
+### With Vue 3
+```bash
+npm install flexflag-client vue
+```
+
 ## Quick Start
 
-```javascript
-import { FlexFlagClient } from 'flexflag-client';
+### Backend/Node.js
 
-// Initialize the client
+```javascript
+const { FlexFlagClient } = require('flexflag-client');
+
 const client = new FlexFlagClient({
-  apiKey: 'your-api-key',
-  baseUrl: 'https://api.flexflag.io', // or your self-hosted instance
+  apiKey: process.env.FLEXFLAG_API_KEY,
+  baseUrl: 'http://localhost:8080',
   environment: 'production'
 });
 
-// Wait for initialization
-await client.initialize();
-
-// Evaluate a feature flag
-const isFeatureEnabled = await client.evaluateBoolean('new-feature', false);
-
-if (isFeatureEnabled) {
-  // Show new feature
-} else {
-  // Show default experience
-}
-```
-
-## TypeScript Support
-
-The SDK is written in TypeScript and provides full type definitions:
-
-```typescript
-import { FlexFlagClient, FlexFlagConfig, EvaluationContext } from 'flexflag-client';
-
-const config: FlexFlagConfig = {
-  apiKey: 'your-api-key',
-  environment: 'production'
-};
-
-const client = new FlexFlagClient(config);
-
-const context: EvaluationContext = {
+// Boolean flags
+const isEnabled = await client.evaluateBoolean('feature-flag', {
   userId: 'user-123',
-  attributes: {
-    plan: 'premium',
-    country: 'US'
-  }
-};
+  attributes: { plan: 'premium' }
+}, false);
 
-const flagValue = await client.evaluate('feature-flag', 'default', context);
+// String flags
+const theme = await client.evaluateString('ui-theme', { userId: 'user-123' }, 'light');
+
+// Number flags
+const maxRetries = await client.evaluateNumber('max-retries', { userId: 'user-123' }, 3);
+
+// JSON flags
+const config = await client.evaluateJSON('app-config', { userId: 'user-123' }, {});
+
+// Batch evaluation
+const flags = await client.evaluateBatch(['feature-a', 'feature-b'], { userId: 'user-123' });
 ```
 
-## React Integration
+### React
 
-```jsx
-import { FlexFlagProvider, useFeatureFlag } from 'flexflag-client';
+**Important**: Import React integration from `flexflag-client/react`
+
+```javascript
+import React from 'react';
+import { FlexFlagProvider, useBooleanFlag, FeatureGate } from 'flexflag-client/react';
 
 function App() {
   return (
-    <FlexFlagProvider client={client}>
-      <MyComponent />
+    <FlexFlagProvider
+      config={{
+        apiKey: process.env.REACT_APP_FLEXFLAG_API_KEY,
+        baseUrl: 'http://localhost:8080',
+        environment: 'production'
+      }}
+      context={{ userId: 'user-123', attributes: { plan: 'premium' } }}
+    >
+      <Dashboard />
     </FlexFlagProvider>
   );
 }
 
-function MyComponent() {
-  const [isEnabled, loading] = useFeatureFlag('new-feature', false);
-  
+function Dashboard() {
+  const { enabled, loading } = useBooleanFlag('dark-mode');
+
   if (loading) return <div>Loading...</div>;
-  
-  return isEnabled ? <NewFeature /> : <OldFeature />;
+
+  return (
+    <div className={enabled ? 'dark' : 'light'}>
+      <h1>Dashboard</h1>
+
+      <FeatureGate flagKey="new-feature" fallback={<OldFeature />}>
+        <NewFeature />
+      </FeatureGate>
+    </div>
+  );
 }
 ```
 
-## Vue Integration
+### Vue 3
+
+**Important**: Import Vue integration from `flexflag-client/vue`
+
+```javascript
+import { createApp } from 'vue';
+import { createFlexFlag } from 'flexflag-client/vue';
+import App from './App.vue';
+
+const app = createApp(App);
+
+app.use(createFlexFlag({
+  apiKey: import.meta.env.VITE_FLEXFLAG_API_KEY,
+  baseUrl: 'http://localhost:8080',
+  environment: 'production'
+}));
+
+app.mount('#app');
+```
 
 ```vue
 <template>
-  <div v-if="loading">Loading...</div>
-  <NewFeature v-else-if="isEnabled" />
-  <OldFeature v-else />
+  <div :class="{ dark: enabled }">
+    <h1 v-if="!loading">Dark Mode: {{ enabled }}</h1>
+  </div>
 </template>
 
 <script setup>
-import { useFeatureFlagVue } from 'flexflag-client';
+import { useBooleanFlag } from 'flexflag-client/vue';
 
-const { value: isEnabled, loading } = useFeatureFlagVue('new-feature', false);
+const { enabled, loading } = useBooleanFlag('dark-mode');
 </script>
-```
-
-## Configuration Options
-
-```javascript
-const client = new FlexFlagClient({
-  apiKey: 'your-api-key',
-  baseUrl: 'https://api.flexflag.io',
-  environment: 'production',
-  
-  // Cache configuration
-  cache: {
-    storage: 'memory', // 'memory', 'localStorage', 'sessionStorage'
-    ttl: 300000, // 5 minutes
-    maxSize: 1000
-  },
-  
-  // Connection settings
-  connection: {
-    mode: 'streaming', // 'streaming', 'polling', 'offline'
-    pollingInterval: 30000,
-    timeout: 5000
-  },
-  
-  // Offline support
-  offline: {
-    enabled: true,
-    storageKey: 'flexflag-cache',
-    defaultFlags: {
-      'feature-1': true,
-      'feature-2': false
-    }
-  }
-});
 ```
 
 ## API Reference
 
-### FlexFlagClient
+### Client Methods
 
-#### Methods
+#### `evaluate(flagKey, context?, defaultValue?)`
+Evaluate any flag type.
 
-- `initialize(): Promise<void>` - Initialize the client and fetch initial flags
-- `evaluate(flagKey, defaultValue?, context?): Promise<FlagValue>` - Evaluate any flag type
-- `evaluateBoolean(flagKey, defaultValue?, context?): Promise<boolean>` - Evaluate boolean flag
-- `evaluateString(flagKey, defaultValue?, context?): Promise<string>` - Evaluate string flag
-- `evaluateNumber(flagKey, defaultValue?, context?): Promise<number>` - Evaluate number flag
-- `evaluateObject(flagKey, defaultValue?, context?): Promise<object>` - Evaluate object flag
-- `close(): Promise<void>` - Close the client and cleanup resources
-- `isReady(): boolean` - Check if client is ready
+#### `evaluateBoolean(flagKey, context?, defaultValue?)`
+Evaluate a boolean flag.
 
-#### Events
+#### `evaluateString(flagKey, context?, defaultValue?)`
+Evaluate a string flag.
 
-- `ready` - Emitted when client is initialized
-- `update` - Emitted when flags are updated
-- `error` - Emitted on errors
+#### `evaluateNumber(flagKey, context?, defaultValue?)`
+Evaluate a number flag.
+
+#### `evaluateJSON<T>(flagKey, context?, defaultValue?)`
+Evaluate a JSON flag with type safety.
+
+#### `evaluateBatch(flagKeys[], context?)`
+Evaluate multiple flags at once.
+
+#### `setContext(context)`
+Set default context for all evaluations.
+
+#### `clearCache()`
+Clear all cached flag values.
+
+#### `getMetrics()`
+Get SDK metrics.
+
+#### `close()`
+Close SDK connections and cleanup.
+
+## Configuration
 
 ```javascript
-client.on('ready', () => {
-  console.log('FlexFlag client is ready');
-});
+const client = new FlexFlagClient({
+  // Required
+  apiKey: 'your_api_key',
 
-client.on('update', (updatedFlags) => {
-  console.log('Flags updated:', updatedFlags);
-});
+  // Optional
+  baseUrl: 'http://localhost:8080',
+  environment: 'production',
 
-client.on('error', (error) => {
-  console.error('FlexFlag error:', error);
+  // Cache configuration
+  cache: {
+    enabled: true,
+    ttl: 300000,         // 5 minutes
+    storage: 'memory',   // 'memory' | 'localStorage' | 'sessionStorage'
+  },
+
+  // Connection settings
+  connection: {
+    mode: 'streaming',   // 'streaming' | 'polling' | 'offline'
+    pollingInterval: 30000,
+    timeout: 5000,
+  },
+
+  // Offline support
+  offline: {
+    enabled: true,
+    defaultFlags: {
+      'feature-a': false,
+      'theme': 'light'
+    }
+  },
+
+  // Performance
+  performance: {
+    batchRequests: true,
+    prefetch: false,
+  },
+
+  // Logging
+  logging: {
+    level: 'warn',  // 'debug' | 'info' | 'warn' | 'error'
+  }
 });
 ```
 
-## Performance Features
+## Migration from v1.0.3
 
-- **Local Caching** - Flags are cached locally for instant evaluation
-- **Streaming Updates** - Real-time flag updates via WebSocket/SSE
-- **Offline Support** - Works offline with cached flags
-- **Batch Evaluation** - Evaluate multiple flags efficiently
-- **Smart Prefetching** - Pre-fetch commonly used flags
+**Breaking Changes**: Update your imports
 
-## Browser Support
+```javascript
+// ❌ Old (v1.0.3)
+import { useFeatureFlag } from 'flexflag-client';
+
+// ✅ New (v1.0.4)
+// For React
+import { useFeatureFlag } from 'flexflag-client/react';
+
+// For Vue
+import { useFeatureFlag } from 'flexflag-client/vue';
+
+// Core SDK (backend/Node.js)
+import { FlexFlagClient } from 'flexflag-client';
+```
+
+## Documentation
+
+- [Complete Usage Guide](./README_SDK_USAGE.md) - Detailed examples
+- [Upgrade Guide](./UPGRADE_GUIDE.md) - Migration instructions
+- [Changelog](./CHANGELOG.md) - Version history
+
+## Browser & Runtime Support
 
 - Chrome 60+
 - Firefox 55+
@@ -187,7 +256,5 @@ MIT
 
 ## Support
 
-- Documentation: https://github.com/flexflag/flexflag/tree/main/docs
 - GitHub: https://github.com/flexflag/flexflag
 - Issues: https://github.com/flexflag/flexflag/issues
-- Discord: https://discord.gg/fpewTJyx9S

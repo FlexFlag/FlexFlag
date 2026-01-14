@@ -201,55 +201,55 @@ export class FlexFlagClient extends EventEmitter {
   ): Promise<FlagValue> {
     const startTime = Date.now();
     this.metrics.evaluations++;
-    
+
     try {
       // Merge context with default context
       const evalContext = { ...this.defaultContext, ...context };
-      
+
       // Check cache first if enabled
       if (this.config.cache.enabled && this.config.performance.evaluationMode === 'cached') {
         const cacheKey = this.getCacheKey(flagKey, evalContext);
         const cachedValue = await this.cache.get(cacheKey);
-        
+
         if (cachedValue !== null) {
           this.metrics.cacheHits++;
           const evaluationTime = Date.now() - startTime;
           this.updateAverageLatency(evaluationTime);
-          
+
           this.logger.debug(`Cache hit for flag: ${flagKey}`);
           if (this.config.events.onCacheHit) {
             this.config.events.onCacheHit(flagKey);
           }
-          
+
           this.emitEvaluation(flagKey, cachedValue);
           return cachedValue;
         }
-        
+
         this.metrics.cacheMisses++;
         if (this.config.events.onCacheMiss) {
           this.config.events.onCacheMiss(flagKey);
         }
       }
-      
+
       // Fetch from server
       const value = await this.fetchFlag(flagKey, evalContext);
-      
+
       // Cache the result
       if (this.config.cache.enabled) {
         const cacheKey = this.getCacheKey(flagKey, evalContext);
         await this.cache.set(cacheKey, value, this.config.cache.ttl);
       }
-      
+
       const evaluationTime = Date.now() - startTime;
       this.updateAverageLatency(evaluationTime);
-      
+
       this.emitEvaluation(flagKey, value);
       return value;
-      
+
     } catch (error) {
       this.logger.error(`Failed to evaluate flag: ${flagKey}`, error);
       this.metrics.errors++;
-      
+
       // Try offline default
       if (this.config.offline.enabled) {
         const offlineValue = this.config.offline.defaultFlags[flagKey];
@@ -258,10 +258,58 @@ export class FlexFlagClient extends EventEmitter {
           return offlineValue;
         }
       }
-      
+
       // Return provided default or null
       return defaultValue !== undefined ? defaultValue : null;
     }
+  }
+
+  /**
+   * Evaluate a boolean feature flag
+   */
+  public async evaluateBoolean(
+    flagKey: string,
+    context?: EvaluationContext,
+    defaultValue: boolean = false
+  ): Promise<boolean> {
+    const value = await this.evaluate(flagKey, context, defaultValue);
+    return Boolean(value);
+  }
+
+  /**
+   * Evaluate a string feature flag
+   */
+  public async evaluateString(
+    flagKey: string,
+    context?: EvaluationContext,
+    defaultValue: string = ''
+  ): Promise<string> {
+    const value = await this.evaluate(flagKey, context, defaultValue);
+    return String(value || defaultValue);
+  }
+
+  /**
+   * Evaluate a number feature flag
+   */
+  public async evaluateNumber(
+    flagKey: string,
+    context?: EvaluationContext,
+    defaultValue: number = 0
+  ): Promise<number> {
+    const value = await this.evaluate(flagKey, context, defaultValue);
+    return Number(value || defaultValue);
+  }
+
+  /**
+   * Evaluate a JSON feature flag
+   */
+  public async evaluateJSON<T = any>(
+    flagKey: string,
+    context?: EvaluationContext,
+    defaultValue?: T
+  ): Promise<T> {
+    const value = await this.evaluate(flagKey, context, defaultValue);
+    return value as T;
   }
 
   /**
@@ -279,32 +327,42 @@ export class FlexFlagClient extends EventEmitter {
       }
       return results;
     }
-    
+
     // Batch evaluation
     try {
       const evalContext = { ...this.defaultContext, ...context };
-      const response = await this.httpClient.post<BatchEvaluationResponse>(
+      const response = await this.httpClient.post(
         '/api/v1/evaluate/batch',
         {
-          flags: flagKeys,
-          context: evalContext
-        } as BatchEvaluationRequest
+          flag_keys: flagKeys,
+          user_id: evalContext.userId,
+          user_key: evalContext.userId, // Use userId as userKey if not specified
+          attributes: evalContext.attributes || {}
+        }
       );
-      
+
       this.metrics.networkRequests++;
-      
+
+      // Extract values from the response
+      const flags: Record<string, FlagValue> = {};
+      if (response.data.evaluations) {
+        for (const [key, evaluation] of Object.entries(response.data.evaluations as Record<string, any>)) {
+          flags[key] = evaluation.value;
+        }
+      }
+
       // Cache results
       if (this.config.cache.enabled) {
-        for (const [key, value] of Object.entries(response.data.flags)) {
+        for (const [key, value] of Object.entries(flags)) {
           const cacheKey = this.getCacheKey(key, evalContext);
           await this.cache.set(cacheKey, value, this.config.cache.ttl);
         }
       }
-      
-      return response.data.flags;
+
+      return flags;
     } catch (error) {
       this.logger.error('Batch evaluation failed', error);
-      
+
       // Fallback to individual evaluation
       const results: Record<string, FlagValue> = {};
       for (const key of flagKeys) {
@@ -482,12 +540,21 @@ export class FlexFlagClient extends EventEmitter {
 
   private async fetchFlag(flagKey: string, context: EvaluationContext): Promise<FlagValue> {
     try {
-      const response = await this.httpClient.post(`/api/v1/evaluate`, {
-        flag_key: flagKey,
-        user_context: context,
-        environment: this.config.environment
-      });
-      
+      const response = await this.httpClient.post(
+        `/api/v1/evaluate`,
+        {
+          flag_key: flagKey,
+          user_id: context.userId,
+          user_key: context.userId, // Use userId as userKey if not specified
+          attributes: context.attributes || {}
+        },
+        {
+          params: {
+            environment: this.config.environment
+          }
+        }
+      );
+
       this.metrics.networkRequests++;
       return response.data.value;
     } catch (error) {
