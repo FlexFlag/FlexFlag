@@ -172,12 +172,21 @@ func (h *ClientSSEHandler) BroadcastFlagUpdate(flag *types.Flag, action string) 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
+	fmt.Printf("[ClientSSE] Broadcasting flag update: flag=%s, action=%s, env=%s, projectID=%s, total_clients=%d\n",
+		flag.Key, action, flag.Environment, flag.ProjectID, len(h.clients))
+
 	// Send to all clients in the same project and environment
+	sentCount := 0
 	for _, client := range h.clients {
+		fmt.Printf("[ClientSSE] Checking client: clientID=%s, projectID=%s, env=%s, match=%v\n",
+			client.ID, client.ProjectID, client.Environment,
+			client.ProjectID == flag.ProjectID && client.Environment == flag.Environment)
 		if client.ProjectID == flag.ProjectID && client.Environment == flag.Environment {
 			h.sendEvent(client, event)
+			sentCount++
 		}
 	}
+	fmt.Printf("[ClientSSE] Sent flag update to %d clients\n", sentCount)
 }
 
 // BroadcastToEnvironment sends event to all clients in specific environment
