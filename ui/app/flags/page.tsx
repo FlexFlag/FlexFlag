@@ -250,27 +250,37 @@ function EditFlagDialog({
             rows={3}
             fullWidth
           />
-          <TextField
-            label="Default Value"
-            value={typeof formData.default === 'object' ? JSON.stringify(formData.default) : formData.default || ''}
-            onChange={(e) => {
-              let value: any = e.target.value;
-              if (flag.type === 'number') {
-                value = parseFloat(value) || 0;
-              } else if (flag.type === 'boolean') {
-                value = value === 'true';
-              } else if (flag.type === 'json') {
-                try {
-                  value = JSON.parse(value);
-                } catch {
-                  value = {};
-                }
+          {flag.type === 'boolean' ? (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={Boolean(formData.default)}
+                  onChange={(e) => setFormData({ ...formData, default: e.target.checked })}
+                />
               }
-              setFormData({ ...formData, default: value });
-            }}
-            fullWidth
-            helperText={flag.type === 'json' ? 'Enter valid JSON' : `Type: ${flag.type}`}
-          />
+              label="Default Value"
+            />
+          ) : (
+            <TextField
+              label="Default Value"
+              value={typeof formData.default === 'object' ? JSON.stringify(formData.default) : formData.default || ''}
+              onChange={(e) => {
+                let value: any = e.target.value;
+                if (flag.type === 'number') {
+                  value = parseFloat(value) || 0;
+                } else if (flag.type === 'json') {
+                  try {
+                    value = JSON.parse(value);
+                  } catch {
+                    value = {};
+                  }
+                }
+                setFormData({ ...formData, default: value });
+              }}
+              fullWidth
+              helperText={flag.type === 'json' ? 'Enter valid JSON' : `Type: ${flag.type}`}
+            />
+          )}
           <FormControlLabel
             control={
               <Switch
@@ -383,27 +393,37 @@ function CreateFlagDialog({ open, onClose, onSave }: {
               <MenuItem value="json">JSON</MenuItem>
             </Select>
           </FormControl>
-          <TextField
-            label="Default Value"
-            value={typeof formData.default === 'object' ? JSON.stringify(formData.default) : formData.default}
-            onChange={(e) => {
-              let value: any = e.target.value;
-              if (formData.type === 'number') {
-                value = parseFloat(value) || 0;
-              } else if (formData.type === 'boolean') {
-                value = value === 'true';
-              } else if (formData.type === 'json') {
-                try {
-                  value = JSON.parse(value);
-                } catch {
-                  value = {};
-                }
+          {formData.type === 'boolean' ? (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={Boolean(formData.default)}
+                  onChange={(e) => setFormData({ ...formData, default: e.target.checked })}
+                />
               }
-              setFormData({ ...formData, default: value });
-            }}
-            fullWidth
-            helperText={formData.type === 'json' ? 'Enter valid JSON' : undefined}
-          />
+              label="Default Value"
+            />
+          ) : (
+            <TextField
+              label="Default Value"
+              value={typeof formData.default === 'object' ? JSON.stringify(formData.default) : formData.default}
+              onChange={(e) => {
+                let value: any = e.target.value;
+                if (formData.type === 'number') {
+                  value = parseFloat(value) || 0;
+                } else if (formData.type === 'json') {
+                  try {
+                    value = JSON.parse(value);
+                  } catch {
+                    value = {};
+                  }
+                }
+                setFormData({ ...formData, default: value });
+              }}
+              fullWidth
+              helperText={formData.type === 'json' ? 'Enter valid JSON' : undefined}
+            />
+          )}
           <FormControlLabel
             control={
               <Switch

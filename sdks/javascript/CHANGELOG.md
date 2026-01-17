@@ -2,6 +2,13 @@
 
 All notable changes to the FlexFlag JavaScript SDK will be documented in this file.
 
+## [1.1.1] - 2026-01-17
+
+### Fixed
+- Fixed `evaluateBoolean()` to properly parse string boolean values ("true"/"false")
+- Fixed boolean conversion to handle edge cases: numbers (0=false, non-zero=true), null/undefined
+- The method now correctly returns `false` for the string "false" instead of `true`
+
 ## [1.1.0] - 2026-01-17
 
 ### Added

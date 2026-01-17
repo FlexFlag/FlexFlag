@@ -273,6 +273,32 @@ export class FlexFlagClient extends EventEmitter {
     defaultValue: boolean = false
   ): Promise<boolean> {
     const value = await this.evaluate(flagKey, context, defaultValue);
+
+    // Handle various value formats
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      // Handle string "true" or "false"
+      const lower = value.toLowerCase().trim();
+      if (lower === 'true') return true;
+      if (lower === 'false') return false;
+      // Empty string is false
+      if (lower === '') return false;
+    }
+
+    if (typeof value === 'number') {
+      // 0 is false, non-zero is true
+      return value !== 0;
+    }
+
+    // For null/undefined, return default
+    if (value === null || value === undefined) {
+      return defaultValue;
+    }
+
+    // Fallback to Boolean() for other types (objects, arrays, etc.)
     return Boolean(value);
   }
 
