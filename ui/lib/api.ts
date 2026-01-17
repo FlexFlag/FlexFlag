@@ -36,12 +36,9 @@ class ApiClient {
 
   // Flag Management
   async createFlag(flag: CreateFlagRequest, environment = 'production'): Promise<Flag> {
-    return this.request<Flag>('/flags', {
+    return this.request<Flag>(`/flags?environment=${environment}`, {
       method: 'POST',
       body: JSON.stringify(flag),
-      headers: {
-        'X-Environment': environment,
-      },
     });
   }
 
@@ -59,12 +56,9 @@ class ApiClient {
   }
 
   async updateFlag(key: string, flag: Partial<Flag>, environment = 'production'): Promise<Flag> {
-    return this.request<Flag>(`/flags/${key}`, {
+    return this.request<Flag>(`/flags/${key}?environment=${environment}`, {
       method: 'PUT',
       body: JSON.stringify(flag),
-      headers: {
-        'X-Environment': environment,
-      },
     });
   }
 

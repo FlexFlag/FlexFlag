@@ -97,6 +97,46 @@ docker-pull-all: ## Pull all images from Docker Hub (DOCKER_USERNAME required)
 	@docker pull ${DOCKER_USERNAME}${APP_NAME}-ui:${VERSION}
 	@docker pull ${DOCKER_USERNAME}${APP_NAME}-migrator:${VERSION}
 
+docker-release: ## Build and push all images (prompts for Docker username)
+	@echo "🚀 FlexFlag Docker Release"
+	@echo "=========================="
+	@read -p "Enter your Docker Hub username: " username; \
+	if [ -z "$$username" ]; then \
+		echo "❌ Error: Docker username cannot be empty"; \
+		exit 1; \
+	fi; \
+	echo ""; \
+	echo "📦 Building images for $$username/flexflag-*..."; \
+	echo ""; \
+	docker build -f Dockerfile.api -t $$username/flexflag-api:${VERSION} -t $$username/flexflag-api:latest . && \
+	docker build -f Dockerfile.migrator -t $$username/flexflag-migrator:${VERSION} -t $$username/flexflag-migrator:latest . && \
+	cd ui && docker build -t $$username/flexflag-ui:${VERSION} -t $$username/flexflag-ui:latest . && cd .. && \
+	echo "" && \
+	echo "✅ All images built successfully!" && \
+	echo "" && \
+	echo "🔐 Logging into Docker Hub..." && \
+	docker login && \
+	echo "" && \
+	echo "📤 Pushing images to Docker Hub..." && \
+	docker push $$username/flexflag-api:${VERSION} && \
+	docker push $$username/flexflag-api:latest && \
+	docker push $$username/flexflag-ui:${VERSION} && \
+	docker push $$username/flexflag-ui:latest && \
+	docker push $$username/flexflag-migrator:${VERSION} && \
+	docker push $$username/flexflag-migrator:latest && \
+	echo "" && \
+	echo "✅ All images pushed successfully!" && \
+	echo "" && \
+	echo "📦 Published images:" && \
+	echo "   🔹 $$username/flexflag-api:${VERSION}" && \
+	echo "   🔹 $$username/flexflag-api:latest" && \
+	echo "   🔹 $$username/flexflag-ui:${VERSION}" && \
+	echo "   🔹 $$username/flexflag-ui:latest" && \
+	echo "   🔹 $$username/flexflag-migrator:${VERSION}" && \
+	echo "   🔹 $$username/flexflag-migrator:latest" && \
+	echo "" && \
+	echo "🎉 Release complete!"
+
 docker-run: ## Run Docker container
 	@echo "Running Docker container..."
 	@docker-compose up -d
