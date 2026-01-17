@@ -21,6 +21,7 @@ type FlagHandler struct {
 	projectRepo      *postgres.ProjectRepository
 	edgeSyncHandler  *EdgeSyncHandler
 	sseHandler       *SSEHandler
+	clientSSEHandler *ClientSSEHandler
 }
 
 func NewFlagHandler(repo storage.FlagRepository, auditService *services.AuditService, ultraFastHandler *UltraFastHandler, projectRepo *postgres.ProjectRepository) *FlagHandler {
@@ -40,6 +41,11 @@ func (h *FlagHandler) SetEdgeSyncHandler(edgeSyncHandler *EdgeSyncHandler) {
 // SetSSEHandler sets the SSE handler for broadcasting updates
 func (h *FlagHandler) SetSSEHandler(sseHandler *SSEHandler) {
 	h.sseHandler = sseHandler
+}
+
+// SetClientSSEHandler sets the client SSE handler for broadcasting updates to client SDKs
+func (h *FlagHandler) SetClientSSEHandler(clientSSEHandler *ClientSSEHandler) {
+	h.clientSSEHandler = clientSSEHandler
 }
 
 // CreateFlagRequest represents the request to create a new flag
@@ -177,6 +183,11 @@ func (h *FlagHandler) CreateFlag(c *gin.Context) {
 		// Broadcast to edge servers via SSE
 		if h.sseHandler != nil {
 			h.sseHandler.BroadcastFlagUpdate(flag, "create")
+		}
+
+		// Broadcast to client SDKs via SSE
+		if h.clientSSEHandler != nil {
+			h.clientSSEHandler.BroadcastFlagUpdate(flag, "created")
 		}
 
 		createdFlags = append(createdFlags, flag)
@@ -343,6 +354,11 @@ func (h *FlagHandler) UpdateFlag(c *gin.Context) {
 		h.sseHandler.BroadcastFlagUpdate(existingFlag, "update")
 	}
 
+	// Broadcast to client SDKs via SSE
+	if h.clientSSEHandler != nil {
+		h.clientSSEHandler.BroadcastFlagUpdate(existingFlag, "updated")
+	}
+
 	c.JSON(http.StatusOK, existingFlag)
 }
 
@@ -378,6 +394,16 @@ func (h *FlagHandler) DeleteFlag(c *gin.Context) {
 			Environment: environment,
 		}
 		h.sseHandler.BroadcastFlagUpdate(flag, "delete")
+	}
+
+	// Broadcast deletion to client SDKs via SSE
+	if h.clientSSEHandler != nil {
+		// Create a minimal flag object for the delete broadcast
+		flag := &types.Flag{
+			Key:         key,
+			Environment: environment,
+		}
+		h.clientSSEHandler.BroadcastFlagUpdate(flag, "deleted")
 	}
 
 	c.JSON(http.StatusNoContent, nil)
@@ -421,6 +447,11 @@ func (h *FlagHandler) ToggleFlag(c *gin.Context) {
 	// Broadcast to edge servers via SSE
 	if h.sseHandler != nil {
 		h.sseHandler.BroadcastFlagUpdate(flag, "update")
+	}
+
+	// Broadcast to client SDKs via SSE
+	if h.clientSSEHandler != nil {
+		h.clientSSEHandler.BroadcastFlagUpdate(flag, "toggled")
 	}
 
 	// Log the toggle action

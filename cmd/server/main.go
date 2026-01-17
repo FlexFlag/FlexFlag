@@ -96,9 +96,11 @@ func main() {
 	ultraFastHandler := handlers.NewUltraFastHandler(flagRepo)
 	edgeSyncHandler := handlers.NewEdgeSyncHandler(flagRepo, apiKeyRepo)
 	sseHandler := handlers.NewSSEHandler()
+	clientSSEHandler := handlers.NewClientSSEHandler(apiKeyRepo)
 	flagHandler := handlers.NewFlagHandler(flagRepo, auditService, ultraFastHandler, projectRepo)
 	flagHandler.SetEdgeSyncHandler(edgeSyncHandler)
 	flagHandler.SetSSEHandler(sseHandler)
+	flagHandler.SetClientSSEHandler(clientSSEHandler)
 	authHandler := handlers.NewAuthHandler(userRepo, jwtManager)
 	userHandler := handlers.NewUserHandler(userRepo)
 	oauthHandler := handlers.NewOAuthHandler(
@@ -297,6 +299,10 @@ func main() {
 			edge.POST("/auth", edgeSyncHandler.AuthenticateAPIKey)
 			edge.GET("/servers", auth.AuthMiddleware(jwtManager), sseHandler.HandleEdgeServerStatus)
 		}
+
+		// Client SDK SSE stream (uses API key authentication via query parameter)
+		api.GET("/stream", clientSSEHandler.HandleClientSSE)
+		api.GET("/stream/clients", auth.AuthMiddleware(jwtManager), clientSSEHandler.HandleClientStatus)
 	}
 
 	srv := &http.Server{
