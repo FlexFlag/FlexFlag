@@ -1,6 +1,6 @@
 {
   "name": "flexflag-client",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "FlexFlag JavaScript/TypeScript SDK for feature flag management with local caching",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",

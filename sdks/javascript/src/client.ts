@@ -28,7 +28,7 @@ export class FlexFlagClient extends EventEmitter {
   private logger: Logger;
   private ready: boolean = false;
   private connectionMode: ConnectionMode;
-  private ws?: WebSocket;
+  private eventSource?: EventSource;
   private pollingInterval?: NodeJS.Timeout;
   private defaultContext: EvaluationContext = {};
   private metrics: SDKMetrics = {
@@ -507,30 +507,30 @@ export class FlexFlagClient extends EventEmitter {
    */
   public async close(): Promise<void> {
     this.logger.info('Closing FlexFlag SDK...');
-    
-    // Stop WebSocket connection
-    if (this.ws) {
-      this.ws.close();
-      this.ws = undefined;
+
+    // Stop SSE connection
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = undefined;
     }
-    
+
     // Stop polling
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
       this.pollingInterval = undefined;
     }
-    
+
     // Clear batch timer
     if (this.batchTimer) {
       clearTimeout(this.batchTimer);
       this.batchTimer = undefined;
     }
-    
+
     // Save offline flags
     if (this.config.offline.enabled && this.config.offline.persistence) {
       await this.saveOfflineFlags();
     }
-    
+
     this.ready = false;
     this.removeAllListeners();
     this.logger.info('FlexFlag SDK closed');
@@ -568,41 +568,54 @@ export class FlexFlagClient extends EventEmitter {
   }
 
   private async startStreaming(): Promise<void> {
-    if (typeof WebSocket === 'undefined') {
-      this.logger.warn('WebSocket not available, falling back to polling');
+    if (typeof EventSource === 'undefined') {
+      this.logger.warn('EventSource (SSE) not available, falling back to polling');
       this.connectionMode = 'polling';
       this.startPolling();
       return;
     }
-    
-    const wsUrl = this.config.baseUrl.replace(/^http/, 'ws') + '/api/v1/stream';
-    
+
+    const sseUrl = `${this.config.baseUrl}/api/v1/stream?api_key=${encodeURIComponent(this.config.apiKey)}&environment=${encodeURIComponent(this.config.environment)}`;
+
     try {
-      this.ws = new WebSocket(wsUrl, {
-        headers: {
-          'X-API-Key': this.config.apiKey
-        }
-      } as any);
-      
-      this.ws.onopen = () => {
-        this.logger.info('WebSocket connection established');
+      this.eventSource = new EventSource(sseUrl);
+
+      this.eventSource.onopen = () => {
+        this.logger.info('SSE connection established');
       };
-      
-      this.ws.onmessage = (event) => {
+
+      this.eventSource.onmessage = (event) => {
         this.handleStreamMessage(event.data);
       };
-      
-      this.ws.onerror = (error) => {
-        this.logger.error('WebSocket error', error);
-      };
-      
-      this.ws.onclose = () => {
-        this.logger.info('WebSocket connection closed');
-        // Attempt reconnection
+
+      // Listen for specific event types
+      this.eventSource.addEventListener('connected', (event: any) => {
+        const data = JSON.parse(event.data);
+        this.logger.info('Connected to FlexFlag SSE:', data.data.message);
+      });
+
+      this.eventSource.addEventListener('flag_update', (event: any) => {
+        this.handleStreamMessage(event.data);
+      });
+
+      this.eventSource.addEventListener('ping', (event: any) => {
+        // Ping received, connection alive
+        this.logger.debug('SSE ping received');
+      });
+
+      this.eventSource.onerror = (error) => {
+        this.logger.error('SSE error', error);
+
+        // Close and attempt reconnection
+        if (this.eventSource) {
+          this.eventSource.close();
+          this.eventSource = undefined;
+        }
+
         setTimeout(() => this.startStreaming(), this.config.connection.retryDelay);
       };
     } catch (error) {
-      this.logger.error('Failed to establish WebSocket connection', error);
+      this.logger.error('Failed to establish SSE connection', error);
       // Fall back to polling
       this.connectionMode = 'polling';
       this.startPolling();

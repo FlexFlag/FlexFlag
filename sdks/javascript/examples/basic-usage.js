@@ -23,7 +23,8 @@ async function basicExample() {
     
     // Connection settings
     connection: {
-      mode: 'streaming', // WebSocket for real-time updates
+      mode: 'streaming', // Server-Sent Events (SSE) for real-time updates (default)
+      pollingInterval: 30000, // Only used if mode is 'polling'
       timeout: 5000,
       retryAttempts: 3
     },

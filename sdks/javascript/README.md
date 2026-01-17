@@ -5,12 +5,12 @@ High-performance feature flag SDK for JavaScript and TypeScript with local cachi
 ## Features
 
 - 🚀 **High Performance** - Local caching with configurable TTL
-- 🔌 **Multiple Connection Modes** - WebSocket streaming, polling, or offline
+- 🔌 **Multiple Connection Modes** - Server-Sent Events (SSE), polling, or offline
 - 📦 **Framework Integrations** - React hooks and Vue 3 composables
 - 💾 **Offline Support** - Works without network connection using default flags
 - 🎯 **Type Safe** - Full TypeScript support with type definitions
 - ⚡ **Batch Evaluation** - Evaluate multiple flags in a single request
-- 🔄 **Real-time Updates** - Automatic flag updates via WebSocket
+- 🔄 **Real-time Updates** - Automatic flag updates via Server-Sent Events (SSE)
 - 📊 **Metrics Tracking** - Built-in performance and usage metrics
 
 ## Installation
@@ -190,8 +190,8 @@ const client = new FlexFlagClient({
 
   // Connection settings
   connection: {
-    mode: 'streaming',   // 'streaming' | 'polling' | 'offline'
-    pollingInterval: 30000,
+    mode: 'streaming',   // 'streaming' (SSE, default) | 'polling' | 'offline'
+    pollingInterval: 30000, // Used only in polling mode
     timeout: 5000,
   },
 

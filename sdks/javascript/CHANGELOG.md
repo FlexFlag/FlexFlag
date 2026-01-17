@@ -2,6 +2,51 @@
 
 All notable changes to the FlexFlag JavaScript SDK will be documented in this file.
 
+## [1.1.0] - 2026-01-17
+
+### Added
+- **NEW**: Full SSE (Server-Sent Events) support with proper API key authentication
+- Real-time flag updates via SSE streaming with automatic reconnection
+- Support for multiple SSE event types: `connected`, `flag_update`, `ping`
+- Proper URL encoding for API keys in query parameters
+
+### Changed
+- SSE endpoint now uses `/api/v1/stream` with API key authentication
+- Changed default connection mode back to 'streaming' for real-time updates
+- Improved SSE error handling and reconnection logic
+
+### Fixed
+- Fixed SSE authentication to work with backend API key validation
+- Resolved issues with EventSource not supporting custom headers
+
+## [1.0.7] - 2026-01-17
+
+### Changed
+- **BREAKING**: Changed default connection mode from 'streaming' to 'polling'
+- Polling is now the recommended mode for client SDKs
+- SSE streaming mode remains available but is intended for edge server deployments
+
+### Fixed
+- Resolved authentication issues by using polling mode which properly supports API key headers
+- Improved reliability of flag updates with polling-based change detection
+
+## [1.0.6] - 2026-01-17
+
+### Fixed
+- Fixed SSE authentication by passing API key as query parameter instead of header
+- EventSource API doesn't support custom headers, so API key is now sent in URL
+
+## [1.0.5] - 2026-01-17
+
+### Changed
+- Migrated from WebSocket to Server-Sent Events (SSE) for real-time flag updates
+- Updated streaming connection to use EventSource API instead of WebSocket
+- Improved connection stability and automatic reconnection handling for SSE
+
+### Fixed
+- Better fallback mechanism when SSE is not available
+- Improved error handling for streaming connections
+
 ## [1.0.4] - 2026-01-15
 
 ### Fixed
@@ -34,7 +79,7 @@ All notable changes to the FlexFlag JavaScript SDK will be documented in this fi
 - Initial release with React and Vue support
 - Core evaluation functionality
 - Caching and offline support
-- WebSocket and polling connection modes
+- WebSocket and polling connection modes (WebSocket later replaced with SSE in v1.0.5)
 
 ## [1.0.2] - 2024-01-13
 
