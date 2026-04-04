@@ -55,7 +55,7 @@ func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 	// Try cache first
 	flag, found := h.cache.Get(c.Request.Context(), req.FlagKey, environment)
 	if !found {
-		// Cache miss - fetch from database
+		// Cache miss - fetch from database and prime the engine
 		var err error
 		if projectID != "" {
 			flag, err = h.repo.GetByProjectKey(c.Request.Context(), projectID, req.FlagKey, environment)
@@ -67,8 +67,9 @@ func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 			return
 		}
 
-		// Store in cache for next time
 		h.cache.Set(c.Request.Context(), req.FlagKey, environment, flag)
+		// Only update the engine on a cache miss — avoids a write lock on every request.
+		h.engine.UpdateFlag(flag)
 	}
 
 	// Analytics: record every evaluation via defer so early returns are also captured.
@@ -95,9 +96,6 @@ func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 		})
 		return
 	}
-
-	// Update engine with cached flag (very fast since it's in-memory)
-	h.engine.UpdateFlag(flag)
 
 	// Build evaluation request
 	evalReq := &types.EvaluationRequest{
@@ -171,7 +169,7 @@ func (h *OptimizedEvaluationHandler) FastBatchEvaluate(c *gin.Context) {
 		// Try cache first
 		flag, found := h.cache.Get(c.Request.Context(), flagKey, environment)
 		if !found {
-			// Cache miss - fetch from database
+			// Cache miss - fetch from database and prime the engine
 			var err error
 			if projectID != "" {
 				flag, err = h.repo.GetByProjectKey(c.Request.Context(), projectID, flagKey, environment)
@@ -184,9 +182,9 @@ func (h *OptimizedEvaluationHandler) FastBatchEvaluate(c *gin.Context) {
 				}
 				continue
 			}
-			
-			// Store in cache
+
 			h.cache.Set(c.Request.Context(), flagKey, environment, flag)
+			h.engine.UpdateFlag(flag)
 		}
 
 		// Fast path for disabled flags
@@ -200,9 +198,6 @@ func (h *OptimizedEvaluationHandler) FastBatchEvaluate(c *gin.Context) {
 			}
 			continue
 		}
-
-		// Update engine and evaluate
-		h.engine.UpdateFlag(flag)
 		evalReq := &types.EvaluationRequest{
 			FlagKey:     flagKey,
 			UserID:      req.UserID,
