@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/flexflag/flexflag/internal/analytics"
 	"github.com/flexflag/flexflag/internal/core/evaluation"
 	"github.com/flexflag/flexflag/internal/core/rollout"
 	"github.com/flexflag/flexflag/internal/storage"
@@ -18,9 +19,10 @@ type EvaluationHandler struct {
 	rolloutRepo  storage.RolloutRepository
 	engine       *evaluation.Engine
 	rolloutEval  *rollout.Evaluator
+	counter      *analytics.Counter
 }
 
-func NewEvaluationHandler(repo storage.FlagRepository, rolloutRepo storage.RolloutRepository) *EvaluationHandler {
+func NewEvaluationHandler(repo storage.FlagRepository, rolloutRepo storage.RolloutRepository, counter *analytics.Counter) *EvaluationHandler {
 	engine := evaluation.NewEngine()
 	rolloutEval := rollout.NewEvaluator()
 	return &EvaluationHandler{
@@ -28,6 +30,7 @@ func NewEvaluationHandler(repo storage.FlagRepository, rolloutRepo storage.Rollo
 		rolloutRepo: rolloutRepo,
 		engine:      engine,
 		rolloutEval: rolloutEval,
+		counter:     counter,
 	}
 }
 
@@ -314,6 +317,10 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 		Timestamp:      evalResp.Timestamp,
 	}
 
+	if h.counter != nil {
+		h.counter.Record(flag.Key, environment, req.UserID, evalResp.Variation)
+	}
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -398,6 +405,10 @@ func (h *EvaluationHandler) BatchEvaluate(c *gin.Context) {
 		// Parse the value from JSON
 		var value interface{}
 		_ = json.Unmarshal(evalResp.Value, &value)
+
+		if h.counter != nil {
+			h.counter.Record(flagKey, environment, req.UserID, evalResp.Variation)
+		}
 
 		results[flagKey] = map[string]interface{}{
 			"value":     value,

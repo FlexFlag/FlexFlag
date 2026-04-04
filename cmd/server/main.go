@@ -35,6 +35,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/flexflag/flexflag/internal/analytics"
 	"github.com/flexflag/flexflag/internal/api/handlers"
 	"github.com/flexflag/flexflag/internal/api/middleware"
 	"github.com/flexflag/flexflag/internal/auth"
@@ -92,6 +93,9 @@ func main() {
 	// Initialize auth
 	jwtManager := auth.NewJWTManager("your-secret-key-here", 24*time.Hour)
 	
+	// Initialize analytics counter (shared across all eval handlers)
+	analyticsCounter := analytics.NewCounter()
+
 	// Initialize handlers
 	ultraFastHandler := handlers.NewUltraFastHandler(flagRepo)
 	edgeSyncHandler := handlers.NewEdgeSyncHandler(flagRepo, apiKeyRepo)
@@ -114,10 +118,11 @@ func main() {
 	segmentHandler := handlers.NewSegmentHandler(segmentRepo)
 	rolloutHandler := handlers.NewRolloutHandler(rolloutRepo)
 	auditHandler := handlers.NewAuditHandler(auditRepo)
-	evaluationHandler := handlers.NewEvaluationHandler(flagRepo, rolloutRepo)
-	optimizedEvalHandler := handlers.NewOptimizedEvaluationHandler(flagRepo)
+	evaluationHandler := handlers.NewEvaluationHandler(flagRepo, rolloutRepo, analyticsCounter)
+	optimizedEvalHandler := handlers.NewOptimizedEvaluationHandler(flagRepo, analyticsCounter)
 	apiKeyHandler := handlers.NewApiKeyHandler(apiKeyRepo)
 	configHandler := handlers.NewConfigHandler(flagRepo)
+	analyticsHandler := handlers.NewAnalyticsHandler(analyticsCounter)
 
 	r := gin.New()
 	r.Use(gin.Logger())
@@ -306,6 +311,9 @@ func main() {
 		// POST /config/evaluate — config values evaluated for a specific user context
 		api.GET("/config", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), configHandler.GetConfig)
 		api.POST("/config/evaluate", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), configHandler.EvaluateConfig)
+
+		// Analytics — in-memory evaluation counters (resets on restart)
+		api.GET("/analytics/flags", auth.AuthMiddleware(jwtManager), analyticsHandler.GetFlagAnalytics)
 
 		// Client SDK SSE stream (uses API key authentication via query parameter)
 		api.GET("/stream", clientSSEHandler.HandleClientSSE)

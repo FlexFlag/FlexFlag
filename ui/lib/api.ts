@@ -301,6 +301,19 @@ class ApiClient {
     });
   }
 
+  // Analytics
+  async getFlagAnalytics(environment = 'production'): Promise<{
+    flags: Record<string, {
+      total_evaluations: number;
+      unique_users: number;
+      last_evaluated_at?: string;
+      variation_counts: Record<string, number>;
+    }>;
+    environment: string;
+  }> {
+    return this.request(`/analytics/flags?environment=${environment}`);
+  }
+
   // Health Check
   async healthCheck(): Promise<{ status: string; service: string }> {
     const response = await fetch('http://localhost:8080/health');

@@ -12,17 +12,14 @@ import {
   CardContent,
   Paper,
   Chip,
-  IconButton,
-  Tooltip,
+  LinearProgress,
 } from '@mui/material';
 import {
   Flag as FlagIcon,
   DonutLarge as RolloutIcon,
   Segment as SegmentIcon,
   Assessment as EvaluationIcon,
-  Speed as PerformanceIcon,
-  Science as ExperimentIcon,
-  TrendingUp as TrendingUpIcon,
+  Bolt as BoltIcon,
   People as PeopleIcon,
 } from '@mui/icons-material';
 
@@ -32,28 +29,49 @@ interface ProjectStats {
   rollouts: number;
 }
 
+interface FlagStat {
+  total_evaluations: number;
+  unique_users: number;
+  last_evaluated_at?: string;
+  variation_counts: Record<string, number>;
+}
+
 export default function ProjectOverview() {
   const params = useParams();
   const { currentEnvironment } = useEnvironment();
   const projectId = params.projectId as string;
   const [project, setProject] = useState<any>(null);
   const [stats, setStats] = useState<ProjectStats | null>(null);
+  const [analytics, setAnalytics] = useState<Record<string, FlagStat>>({});
+  const [totalEvaluations, setTotalEvaluations] = useState(0);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchProjectData = async () => {
       try {
         setLoading(true);
-        
-        // Fetch project details
+
         const projects = await apiClient.getProjects();
-        const foundProject = projects.find(p => p.id === projectId);
+        const foundProject = projects.find((p: any) => p.id === projectId);
         setProject(foundProject);
 
-        // Fetch project statistics
         if (foundProject) {
-          const projectStats = await apiClient.getProjectStats(foundProject.id);
-          setStats(projectStats);
+          const [projectStats, analyticsData] = await Promise.allSettled([
+            apiClient.getProjectStats(foundProject.id),
+            apiClient.getFlagAnalytics(currentEnvironment),
+          ]);
+
+          if (projectStats.status === 'fulfilled') setStats(projectStats.value);
+
+          if (analyticsData.status === 'fulfilled') {
+            const flags = analyticsData.value.flags ?? {};
+            setAnalytics(flags);
+            const evals = Object.values(flags).reduce((s, f) => s + f.total_evaluations, 0);
+            const users = Object.values(flags).reduce((s, f) => s + f.unique_users, 0);
+            setTotalEvaluations(evals);
+            setTotalUsers(users);
+          }
         }
       } catch (error) {
         console.error('Error fetching project data:', error);
@@ -65,7 +83,7 @@ export default function ProjectOverview() {
     if (projectId) {
       fetchProjectData();
     }
-  }, [projectId]);
+  }, [projectId, currentEnvironment]);
 
   if (loading) {
     return (
@@ -211,9 +229,9 @@ export default function ProjectOverview() {
           </Paper>
         </Grid>
         <Grid item xs={12} sm={3}>
-          <Paper sx={{ 
-            p: 3, 
-            textAlign: 'center', 
+          <Paper sx={{
+            p: 3,
+            textAlign: 'center',
             border: '1px solid',
             borderColor: 'divider',
             boxShadow: 0,
@@ -224,15 +242,15 @@ export default function ProjectOverview() {
             justifyContent: 'center'
           }}>
             <Typography variant="h3" fontWeight="700" color="warning.main" sx={{ mb: 1 }}>
-              -
+              {totalEvaluations > 999 ? `${(totalEvaluations / 1000).toFixed(1)}k` : totalEvaluations}
             </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ 
+            <Typography variant="caption" color="text.secondary" sx={{
               fontWeight: 500,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
               fontSize: '0.7rem'
             }}>
-              Active Users
+              Evaluations
             </Typography>
           </Paper>
         </Grid>
@@ -281,20 +299,115 @@ export default function ProjectOverview() {
         ))}
       </Grid>
 
-      {/* Recent Activity */}
+      {/* Evaluation Analytics */}
       <Box sx={{ mt: 4 }}>
-        <Typography variant="h6" fontWeight="bold" gutterBottom sx={{ mb: 2 }}>
-          Recent Activity
-        </Typography>
-        <Paper sx={{ p: 2, textAlign: 'center', minHeight: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <TrendingUpIcon sx={{ fontSize: 32, color: 'grey.400', mb: 1 }} />
-          <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-            Activity Feed Coming Soon
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+          <BoltIcon sx={{ color: 'warning.main', fontSize: 20 }} />
+          <Typography variant="h6" fontWeight="600" sx={{ fontSize: '1.1rem' }}>
+            Flag Evaluations
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Track changes, evaluations, and team activities
-          </Typography>
-        </Paper>
+          <Chip label={currentEnvironment} size="small" variant="outlined" sx={{ ml: 'auto', fontSize: '0.7rem' }} />
+        </Box>
+
+        {Object.keys(analytics).length === 0 ? (
+          <Paper sx={{ p: 4, textAlign: 'center', border: '1px solid', borderColor: 'divider', boxShadow: 0 }}>
+            <EvaluationIcon sx={{ fontSize: 36, color: 'grey.400', mb: 1 }} />
+            <Typography variant="body2" color="text.secondary">
+              No evaluations yet. Evaluations appear here as your SDK calls are made.
+            </Typography>
+          </Paper>
+        ) : (
+          <Grid container spacing={2}>
+            {Object.entries(analytics)
+              .sort(([, a], [, b]) => b.total_evaluations - a.total_evaluations)
+              .slice(0, 6)
+              .map(([flagKey, stat]) => {
+                const maxEvals = Math.max(...Object.values(analytics).map(s => s.total_evaluations), 1);
+                const pct = Math.round((stat.total_evaluations / maxEvals) * 100);
+                const lastEval = stat.last_evaluated_at
+                  ? new Date(stat.last_evaluated_at).toLocaleString()
+                  : null;
+                return (
+                  <Grid item xs={12} md={6} key={flagKey}>
+                    <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', boxShadow: 0 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                        <Typography variant="body2" fontWeight="600" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                          {flagKey}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          <Chip
+                            icon={<BoltIcon sx={{ fontSize: '12px !important' }} />}
+                            label={stat.total_evaluations.toLocaleString()}
+                            size="small"
+                            color="warning"
+                            variant="outlined"
+                            sx={{ fontSize: '0.65rem', height: 20 }}
+                          />
+                          <Chip
+                            icon={<PeopleIcon sx={{ fontSize: '12px !important' }} />}
+                            label={stat.unique_users.toLocaleString()}
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontSize: '0.65rem', height: 20 }}
+                          />
+                        </Box>
+                      </Box>
+                      <LinearProgress
+                        variant="determinate"
+                        value={pct}
+                        sx={{ mb: 1.5, borderRadius: 1, height: 4, bgcolor: 'action.hover' }}
+                        color="warning"
+                      />
+                      {Object.keys(stat.variation_counts).length > 0 && (
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1 }}>
+                          {Object.entries(stat.variation_counts).map(([v, count]) => (
+                            <Chip
+                              key={v}
+                              label={`${v}: ${count}`}
+                              size="small"
+                              sx={{ fontSize: '0.6rem', height: 18, bgcolor: 'action.selected' }}
+                            />
+                          ))}
+                        </Box>
+                      )}
+                      {lastEval && (
+                        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                          Last: {lastEval}
+                        </Typography>
+                      )}
+                    </Paper>
+                  </Grid>
+                );
+              })}
+          </Grid>
+        )}
+
+        {/* Summary row */}
+        {Object.keys(analytics).length > 0 && (
+          <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+            <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider', boxShadow: 0, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <BoltIcon sx={{ color: 'warning.main' }} />
+              <Box>
+                <Typography variant="h6" fontWeight="700">{totalEvaluations.toLocaleString()}</Typography>
+                <Typography variant="caption" color="text.secondary">Total evaluations</Typography>
+              </Box>
+            </Paper>
+            <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider', boxShadow: 0, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <PeopleIcon sx={{ color: 'primary.main' }} />
+              <Box>
+                <Typography variant="h6" fontWeight="700">{totalUsers.toLocaleString()}</Typography>
+                <Typography variant="caption" color="text.secondary">Unique users tracked</Typography>
+              </Box>
+            </Paper>
+            <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider', boxShadow: 0, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <FlagIcon sx={{ color: 'success.main' }} />
+              <Box>
+                <Typography variant="h6" fontWeight="700">{Object.keys(analytics).length}</Typography>
+                <Typography variant="caption" color="text.secondary">Flags with activity</Typography>
+              </Box>
+            </Paper>
+          </Box>
+        )}
       </Box>
     </Box>
   );

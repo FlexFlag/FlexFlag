@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/flexflag/flexflag/internal/analytics"
 	"github.com/flexflag/flexflag/internal/cache"
 	"github.com/flexflag/flexflag/internal/core/evaluation"
 	"github.com/flexflag/flexflag/internal/storage"
@@ -13,19 +14,21 @@ import (
 )
 
 type OptimizedEvaluationHandler struct {
-	repo   storage.FlagRepository
-	engine *evaluation.Engine
-	cache  *cache.MemoryCache
+	repo    storage.FlagRepository
+	engine  *evaluation.Engine
+	cache   *cache.MemoryCache
+	counter *analytics.Counter
 }
 
-func NewOptimizedEvaluationHandler(repo storage.FlagRepository) *OptimizedEvaluationHandler {
+func NewOptimizedEvaluationHandler(repo storage.FlagRepository, counter *analytics.Counter) *OptimizedEvaluationHandler {
 	engine := evaluation.NewEngine()
 	cache := cache.NewMemoryCache(5 * time.Minute) // 5 minute TTL
-	
+
 	return &OptimizedEvaluationHandler{
-		repo:   repo,
-		engine: engine,
-		cache:  cache,
+		repo:    repo,
+		engine:  engine,
+		cache:   cache,
+		counter: counter,
 	}
 }
 
@@ -122,6 +125,10 @@ func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 		Timestamp:      evalResp.Timestamp,
 	}
 
+	if h.counter != nil {
+		h.counter.Record(flag.Key, environment, req.UserID, evalResp.Variation)
+	}
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -208,6 +215,10 @@ func (h *OptimizedEvaluationHandler) FastBatchEvaluate(c *gin.Context) {
 
 		var value interface{}
 		_ = json.Unmarshal(evalResp.Value, &value)
+
+		if h.counter != nil {
+			h.counter.Record(flagKey, environment, req.UserID, evalResp.Variation)
+		}
 
 		results[flagKey] = map[string]interface{}{
 			"value":     value,
