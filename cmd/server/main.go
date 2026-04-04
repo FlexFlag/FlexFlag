@@ -117,6 +117,7 @@ func main() {
 	evaluationHandler := handlers.NewEvaluationHandler(flagRepo, rolloutRepo)
 	optimizedEvalHandler := handlers.NewOptimizedEvaluationHandler(flagRepo)
 	apiKeyHandler := handlers.NewApiKeyHandler(apiKeyRepo)
+	configHandler := handlers.NewConfigHandler(flagRepo)
 
 	r := gin.New()
 	r.Use(gin.Logger())
@@ -299,6 +300,12 @@ func main() {
 			edge.POST("/auth", edgeSyncHandler.AuthenticateAPIKey)
 			edge.GET("/servers", auth.AuthMiddleware(jwtManager), sseHandler.HandleEdgeServerStatus)
 		}
+
+		// Remote Config endpoints (supports both JWT and API key authentication)
+		// GET  /config          — all config values as flat map (for SDK startup)
+		// POST /config/evaluate — config values evaluated for a specific user context
+		api.GET("/config", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), configHandler.GetConfig)
+		api.POST("/config/evaluate", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), configHandler.EvaluateConfig)
 
 		// Client SDK SSE stream (uses API key authentication via query parameter)
 		api.GET("/stream", clientSSEHandler.HandleClientSSE)

@@ -271,6 +271,36 @@ class ApiClient {
     });
   }
 
+  // Remote Config
+  async getRemoteConfig(environment = 'production', projectId?: string): Promise<{
+    config: Record<string, unknown>;
+    metadata: Record<string, { type: string; enabled: boolean; updated_at: string }>;
+    environment: string;
+    timestamp: string;
+  }> {
+    const params = new URLSearchParams({ environment });
+    if (projectId) params.append('project_id', projectId);
+    return this.request(`/config?${params.toString()}`);
+  }
+
+  async evaluateRemoteConfig(
+    context: { user_id?: string; user_key?: string; attributes?: Record<string, unknown> },
+    environment = 'production',
+    projectId?: string
+  ): Promise<{
+    config: Record<string, unknown>;
+    metadata: Record<string, { type: string; enabled: boolean; updated_at: string }>;
+    environment: string;
+    timestamp: string;
+  }> {
+    const params = new URLSearchParams({ environment });
+    if (projectId) params.append('project_id', projectId);
+    return this.request(`/config/evaluate?${params.toString()}`, {
+      method: 'POST',
+      body: JSON.stringify(context),
+    });
+  }
+
   // Health Check
   async healthCheck(): Promise<{ status: string; service: string }> {
     const response = await fetch('http://localhost:8080/health');

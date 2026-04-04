@@ -46,6 +46,7 @@ import {
   Cloud as EnvironmentIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
+  Tune as RemoteConfigIcon,
 } from '@mui/icons-material';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useTheme } from '@mui/material/styles';
@@ -59,11 +60,12 @@ const drawerWidth = 280;
 const collapsedDrawerWidth = 64;
 
 const projectNavigationItems = [
-  { 
-    label: 'Feature Management', 
-    icon: <FlagIcon />, 
+  {
+    label: 'Feature Management',
+    icon: <FlagIcon />,
     children: [
       { label: 'Feature Flags', icon: <FlagIcon />, href: '/flags' },
+      { label: 'Remote Config', icon: <RemoteConfigIcon />, href: '/remote-config' },
       { label: 'Segments', icon: <SegmentIcon />, href: '/segments' },
       { label: 'Rollouts', icon: <RolloutIcon />, href: '/rollouts' },
       { label: 'Experiments', icon: <ExperimentIcon />, href: '/experiments' },
