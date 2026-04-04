@@ -45,9 +45,13 @@ interface LoadTestResult {
   concurrent_users: number;
   duration_ms: number;
   requests_per_second: number;
-  avg_response_time_ms: number;
-  p95_response_time_ms: number;
-  p99_response_time_ms: number;
+  // server-side (evaluation_time_ms from response body — actual handler time)
+  avg_server_time_ms: number;
+  p95_server_time_ms: number;
+  p99_server_time_ms: number;
+  // client-side round-trip (includes network + framework overhead)
+  avg_rtt_ms: number;
+  p95_rtt_ms: number;
   error_rate: number;
   success_count: number;
   error_count: number;
@@ -141,22 +145,23 @@ export default function ProjectPerformancePage() {
 
     try {
       setLoadTestRunning(true);
-      
+
       const startTime = Date.now();
-      const results: number[] = [];
+      const serverTimes: number[] = [];   // evaluation_time_ms from response body
+      const rttTimes: number[] = [];      // wall-clock round-trip from browser
       const errors: number[] = [];
-      
-      // Simulate concurrent load test
+
       const promises = Array.from({ length: loadTestConfig.concurrent_users }, async (_, userIndex) => {
-        const userResults: number[] = [];
+        const userServerTimes: number[] = [];
+        const userRttTimes: number[] = [];
         const userErrors: number[] = [];
-        
+
         const requestsPerUser = Math.floor(loadTestConfig.requests / loadTestConfig.concurrent_users);
-        
+
         for (let i = 0; i < requestsPerUser; i++) {
           try {
-            const evalStart = Date.now();
-            
+            const rttStart = Date.now();
+
             const request = {
               flag_key: loadTestConfig.flag_key,
               user_id: `loadtest_user_${userIndex}_${i}`,
@@ -179,50 +184,57 @@ export default function ProjectPerformancePage() {
               default:
                 response = await apiClient.evaluateFlag(request, currentEnvironment, projectId);
             }
-            
-            const evalTime = Date.now() - evalStart;
-            userResults.push(evalTime);
-          } catch (error) {
+
+            const rtt = Date.now() - rttStart;
+            userRttTimes.push(rtt);
+
+            // Use the server-reported evaluation time — this is the actual handler latency
+            if (response?.evaluation_time_ms != null) {
+              userServerTimes.push(response.evaluation_time_ms);
+            }
+          } catch {
             userErrors.push(1);
           }
         }
-        
-        return { results: userResults, errors: userErrors };
+
+        return { serverTimes: userServerTimes, rttTimes: userRttTimes, errors: userErrors };
       });
 
       const allResults = await Promise.all(promises);
-      
-      // Aggregate results
-      allResults.forEach(({ results: userResults, errors: userErrors }) => {
-        results.push(...userResults);
-        errors.push(...userErrors);
+
+      allResults.forEach(({ serverTimes: s, rttTimes: r, errors: e }) => {
+        serverTimes.push(...s);
+        rttTimes.push(...r);
+        errors.push(...e);
       });
 
-      const endTime = Date.now();
-      const totalDuration = endTime - startTime;
-      
-      // Calculate statistics
-      const sortedResults = results.sort((a, b) => a - b);
-      const avgResponseTime = results.reduce((sum, time) => sum + time, 0) / results.length;
-      const p95Index = Math.floor(sortedResults.length * 0.95);
-      const p99Index = Math.floor(sortedResults.length * 0.99);
-      
+      const totalDuration = Date.now() - startTime;
+
+      const pct = (arr: number[], p: number) => {
+        if (arr.length === 0) return 0;
+        const sorted = [...arr].sort((a, b) => a - b);
+        return sorted[Math.floor(sorted.length * p)] ?? 0;
+      };
+      const avg = (arr: number[]) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+
       const testResult: LoadTestResult = {
         test_type: loadTestConfig.test_type,
         requests: loadTestConfig.requests,
         concurrent_users: loadTestConfig.concurrent_users,
         duration_ms: totalDuration,
         requests_per_second: (loadTestConfig.requests / totalDuration) * 1000,
-        avg_response_time_ms: avgResponseTime,
-        p95_response_time_ms: sortedResults[p95Index] || 0,
-        p99_response_time_ms: sortedResults[p99Index] || 0,
+        avg_server_time_ms: avg(serverTimes),
+        p95_server_time_ms: pct(serverTimes, 0.95),
+        p99_server_time_ms: pct(serverTimes, 0.99),
+        avg_rtt_ms: avg(rttTimes),
+        p95_rtt_ms: pct(rttTimes, 0.95),
         error_rate: (errors.length / loadTestConfig.requests) * 100,
-        success_count: results.length,
+        success_count: serverTimes.length,
         error_count: errors.length,
       };
 
-      setLoadTestResults(prev => [testResult, ...prev.slice(0, 4)]); // Keep last 5 results
-      
+      setLoadTestResults(prev => [testResult, ...prev.slice(0, 4)]);
+
     } catch (error) {
       console.error('Load test failed:', error);
       alert('Load test failed. Please try again.');
@@ -574,57 +586,69 @@ export default function ProjectPerformancePage() {
                             <Typography variant="body2">
                               {result.requests} reqs, {result.concurrent_users} users
                             </Typography>
-                            <Typography variant="body2" color="primary" sx={{ ml: 'auto' }}>
-                              {result.avg_response_time_ms.toFixed(2)}ms avg
+                            <Typography variant="body2" color="success.main" sx={{ ml: 'auto' }}>
+                              {result.avg_server_time_ms.toFixed(3)}ms server · {result.avg_rtt_ms.toFixed(0)}ms RTT
                             </Typography>
                           </Box>
                         </AccordionSummary>
                         <AccordionDetails>
                           <Grid container spacing={2}>
-                            <Grid item xs={6}>
-                              <Typography variant="caption" color="text.secondary">
-                                Requests/sec
+                            <Grid item xs={12}>
+                              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
+                                Server-side (actual handler latency)
                               </Typography>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary">Avg</Typography>
+                              <Typography variant="body2" fontWeight="bold" color="success.main">
+                                {result.avg_server_time_ms.toFixed(3)}ms
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary">P95</Typography>
+                              <Typography variant="body2" fontWeight="bold" color="success.main">
+                                {result.p95_server_time_ms.toFixed(3)}ms
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary">P99</Typography>
+                              <Typography variant="body2" fontWeight="bold" color="success.main">
+                                {result.p99_server_time_ms.toFixed(3)}ms
+                              </Typography>
+                            </Grid>
+
+                            <Grid item xs={12} sx={{ mt: 0.5 }}>
+                              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
+                                Round-trip (browser → server → browser)
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary">Avg RTT</Typography>
+                              <Typography variant="body2" fontWeight="bold">
+                                {result.avg_rtt_ms.toFixed(1)}ms
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary">P95 RTT</Typography>
+                              <Typography variant="body2" fontWeight="bold">
+                                {result.p95_rtt_ms.toFixed(1)}ms
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary">Req/s</Typography>
                               <Typography variant="body2" fontWeight="bold">
                                 {result.requests_per_second.toFixed(1)}
                               </Typography>
                             </Grid>
+
                             <Grid item xs={6}>
-                              <Typography variant="caption" color="text.secondary">
-                                Duration
-                              </Typography>
-                              <Typography variant="body2" fontWeight="bold">
-                                {(result.duration_ms / 1000).toFixed(2)}s
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={6}>
-                              <Typography variant="caption" color="text.secondary">
-                                P95 Response
-                              </Typography>
-                              <Typography variant="body2" fontWeight="bold">
-                                {result.p95_response_time_ms.toFixed(2)}ms
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={6}>
-                              <Typography variant="caption" color="text.secondary">
-                                P99 Response
-                              </Typography>
-                              <Typography variant="body2" fontWeight="bold">
-                                {result.p99_response_time_ms.toFixed(2)}ms
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={6}>
-                              <Typography variant="caption" color="text.secondary">
-                                Success Rate
-                              </Typography>
+                              <Typography variant="caption" color="text.secondary">Success rate</Typography>
                               <Typography variant="body2" fontWeight="bold" color="success.main">
                                 {((result.success_count / result.requests) * 100).toFixed(1)}%
                               </Typography>
                             </Grid>
                             <Grid item xs={6}>
-                              <Typography variant="caption" color="text.secondary">
-                                Errors
-                              </Typography>
+                              <Typography variant="caption" color="text.secondary">Errors</Typography>
                               <Typography variant="body2" fontWeight="bold" color={result.error_count > 0 ? 'error.main' : 'success.main'}>
                                 {result.error_count}
                               </Typography>
