@@ -47,6 +47,7 @@ import {
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   Tune as RemoteConfigIcon,
+  BarChart as AnalyticsIcon,
 } from '@mui/icons-material';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useTheme } from '@mui/material/styles';
@@ -71,6 +72,7 @@ const projectNavigationItems = [
       { label: 'Experiments', icon: <ExperimentIcon />, href: '/experiments' },
     ]
   },
+  { label: 'Analytics', icon: <AnalyticsIcon />, href: '/analytics' },
   { label: 'Evaluations', icon: <AssessmentIcon />, href: '/evaluations' },
   { label: 'Performance', icon: <SpeedIcon />, href: '/performance' },
   { label: 'Environments', icon: <EnvironmentIcon />, href: '/environments' },
