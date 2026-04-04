@@ -98,6 +98,7 @@ export class FlexFlagClient {
         flag_key: flagKey,
         user_id: context?.userId,
         user_key: context?.userKey,
+        platform: context?.platform,
         attributes: context?.attributes,
       }, {
         params: { environment: this.config.environment },
@@ -164,7 +165,12 @@ export class FlexFlagClient {
       const response = await this.http.request({
         method,
         url: context ? '/config/evaluate' : '/config',
-        data: payload,
+        data: context ? {
+          user_id: context.userId,
+          user_key: context.userKey,
+          platform: context.platform,
+          attributes: context.attributes,
+        } : undefined,
         params: { environment: this.config.environment },
       });
 

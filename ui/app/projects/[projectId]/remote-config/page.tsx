@@ -29,6 +29,11 @@ import {
   FormControlLabel,
   Switch,
   Divider,
+  Slider,
+  FormGroup,
+  Checkbox,
+  FormLabel,
+  Stack,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -40,6 +45,10 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   PowerSettingsNew as ToggleIcon,
+  PhoneAndroid as AndroidIcon,
+  Apple as AppleIcon,
+  Web as WebIcon,
+  Percent as PercentIcon,
 } from '@mui/icons-material';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
@@ -48,6 +57,7 @@ import { useEnvironment } from '@/contexts/EnvironmentContext';
 import { Flag } from '@/types';
 
 type ConfigType = 'string' | 'number' | 'json';
+type Platform = 'ios' | 'android' | 'web';
 type ConfigFlag = Flag;
 
 const TYPE_COLORS: Record<string, 'info' | 'warning' | 'success' | 'default'> = {
@@ -62,6 +72,12 @@ const TYPE_PLACEHOLDERS: Record<ConfigType, string> = {
   json: 'e.g. {"key": "value"}',
 };
 
+const ALL_PLATFORMS: { value: Platform; label: string; icon: React.ReactNode }[] = [
+  { value: 'ios', label: 'iOS', icon: <AppleIcon sx={{ fontSize: 16 }} /> },
+  { value: 'android', label: 'Android', icon: <AndroidIcon sx={{ fontSize: 16 }} /> },
+  { value: 'web', label: 'Web', icon: <WebIcon sx={{ fontSize: 16 }} /> },
+];
+
 const DEFAULT_NEW_CONFIG = {
   key: '',
   name: '',
@@ -69,6 +85,8 @@ const DEFAULT_NEW_CONFIG = {
   type: 'string' as ConfigType,
   value: '',
   enabled: true,
+  platforms: [] as Platform[],   // empty = all platforms
+  rolloutPercentage: 100,
 };
 
 function displayValue(flag: Flag): string {
@@ -95,6 +113,32 @@ function defaultForType(type: ConfigType): string {
   return '';
 }
 
+function getPlatforms(flag: Flag): Platform[] {
+  return (flag.metadata?.platforms as Platform[]) ?? [];
+}
+
+function getRolloutPct(flag: Flag): number {
+  return (flag.metadata?.rollout_percentage as number) ?? 100;
+}
+
+function PlatformBadges({ platforms }: { platforms: Platform[] }) {
+  if (platforms.length === 0) return <Chip label="All platforms" size="small" variant="outlined" color="default" sx={{ fontSize: '0.7rem' }} />;
+  return (
+    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+      {platforms.map(p => (
+        <Chip
+          key={p}
+          label={p}
+          size="small"
+          variant="outlined"
+          icon={p === 'ios' ? <AppleIcon /> : p === 'android' ? <AndroidIcon /> : <WebIcon />}
+          sx={{ fontSize: '0.7rem' }}
+        />
+      ))}
+    </Box>
+  );
+}
+
 export default function RemoteConfigPage() {
   const params = useParams();
   const projectId = params.projectId as string;
@@ -109,11 +153,13 @@ export default function RemoteConfigPage() {
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Create dialog state
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newConfig, setNewConfig] = useState({ ...DEFAULT_NEW_CONFIG });
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  // Create / Edit dialog state
+  const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({ ...DEFAULT_NEW_CONFIG });
+  const [editTarget, setEditTarget] = useState<ConfigFlag | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Delete confirm state
   const [deleteTarget, setDeleteTarget] = useState<ConfigFlag | null>(null);
@@ -141,23 +187,23 @@ export default function RemoteConfigPage() {
 
   useEffect(() => { loadFlags(); }, [loadFlags]);
 
-  // ── Inline edit ──────────────────────────────────────────────────────────
+  // ── Inline value edit ────────────────────────────────────────────────────
 
-  const startEdit = (flag: ConfigFlag) => {
+  const startInlineEdit = (flag: ConfigFlag) => {
     setEditingKey(flag.key);
     const val = flag.default;
     setEditValue(typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val ?? ''));
   };
 
-  const cancelEdit = () => { setEditingKey(null); setEditValue(''); };
+  const cancelInlineEdit = () => { setEditingKey(null); setEditValue(''); };
 
-  const saveEdit = async (flag: ConfigFlag) => {
+  const saveInlineEdit = async (flag: ConfigFlag) => {
     setSaving(true);
     try {
       const parsed = parseValue(editValue, flag.type);
       await apiClient.updateFlag(flag.key, { ...flag, default: parsed }, currentEnvironment);
       showSnack(`"${flag.key}" updated`);
-      cancelEdit();
+      cancelInlineEdit();
       await loadFlags();
     } catch {
       showSnack('Failed to save — check the value format', 'error');
@@ -166,7 +212,7 @@ export default function RemoteConfigPage() {
     }
   };
 
-  // ── Toggle enabled ───────────────────────────────────────────────────────
+  // ── Toggle ────────────────────────────────────────────────────────────────
 
   const toggleFlag = async (flag: ConfigFlag) => {
     try {
@@ -178,7 +224,7 @@ export default function RemoteConfigPage() {
     }
   };
 
-  // ── Delete ───────────────────────────────────────────────────────────────
+  // ── Delete ────────────────────────────────────────────────────────────────
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -195,55 +241,103 @@ export default function RemoteConfigPage() {
     }
   };
 
-  // ── Create ───────────────────────────────────────────────────────────────
+  // ── Create / Edit dialog ─────────────────────────────────────────────────
 
   const openCreate = () => {
-    setNewConfig({ ...DEFAULT_NEW_CONFIG });
-    setCreateError(null);
-    setCreateOpen(true);
+    setDialogMode('create');
+    setFormData({ ...DEFAULT_NEW_CONFIG });
+    setFormError(null);
+    setEditTarget(null);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (flag: ConfigFlag) => {
+    setDialogMode('edit');
+    setFormError(null);
+    setEditTarget(flag);
+    setFormData({
+      key: flag.key,
+      name: flag.name,
+      description: flag.description ?? '',
+      type: flag.type as ConfigType,
+      value: typeof flag.default === 'object' ? JSON.stringify(flag.default, null, 2) : String(flag.default ?? ''),
+      enabled: flag.enabled,
+      platforms: getPlatforms(flag),
+      rolloutPercentage: getRolloutPct(flag),
+    });
+    setDialogOpen(true);
   };
 
   const handleTypeChange = (type: ConfigType) => {
-    setNewConfig(prev => ({ ...prev, type, value: defaultForType(type) }));
+    setFormData(prev => ({ ...prev, type, value: defaultForType(type) }));
   };
 
-  const handleCreate = async () => {
-    setCreateError(null);
-    if (!newConfig.key.trim()) { setCreateError('Key is required'); return; }
-    if (!newConfig.name.trim()) { setCreateError('Name is required'); return; }
-    if (newConfig.type === 'json') {
-      try { JSON.parse(newConfig.value); } catch { setCreateError('Invalid JSON value'); return; }
-    }
+  const togglePlatform = (p: Platform) => {
+    setFormData(prev => ({
+      ...prev,
+      platforms: prev.platforms.includes(p)
+        ? prev.platforms.filter(x => x !== p)
+        : [...prev.platforms, p],
+    }));
+  };
 
-    setCreating(true);
+  const buildMetadata = () => {
+    const meta: Record<string, unknown> = {};
+    if (formData.platforms.length > 0) meta.platforms = formData.platforms;
+    if (formData.rolloutPercentage < 100) meta.rollout_percentage = formData.rolloutPercentage;
+    return Object.keys(meta).length > 0 ? meta : undefined;
+  };
+
+  const validateForm = (): string | null => {
+    if (!formData.key.trim()) return 'Key is required';
+    if (!formData.name.trim()) return 'Name is required';
+    if (formData.type === 'json') {
+      try { JSON.parse(formData.value); } catch { return 'Invalid JSON value'; }
+    }
+    if (formData.type === 'number' && isNaN(Number(formData.value))) return 'Value must be a number';
+    return null;
+  };
+
+  const handleSubmit = async () => {
+    const err = validateForm();
+    if (err) { setFormError(err); return; }
+    setFormError(null);
+    setSubmitting(true);
+
+    const payload = {
+      key: formData.key.trim(),
+      name: formData.name.trim(),
+      description: formData.description.trim() || undefined,
+      type: formData.type,
+      enabled: formData.enabled,
+      default: parseValue(formData.value, formData.type),
+      project_id: projectId,
+      metadata: buildMetadata(),
+    };
+
     try {
-      await apiClient.createFlag({
-        key: newConfig.key.trim(),
-        name: newConfig.name.trim(),
-        description: newConfig.description.trim() || undefined,
-        type: newConfig.type,
-        enabled: newConfig.enabled,
-        default: parseValue(newConfig.value, newConfig.type),
-        project_id: projectId,
-      }, currentEnvironment);
-      showSnack(`"${newConfig.key}" created`);
-      setCreateOpen(false);
+      if (dialogMode === 'create') {
+        await apiClient.createFlag(payload, currentEnvironment);
+        showSnack(`"${payload.key}" created`);
+      } else {
+        await apiClient.updateFlag(payload.key, payload, currentEnvironment);
+        showSnack(`"${payload.key}" updated`);
+      }
+      setDialogOpen(false);
       await loadFlags();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to create';
-      setCreateError(msg.includes('409') || msg.includes('already') ? 'A config with this key already exists' : msg);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed';
+      setFormError(msg.includes('409') || msg.includes('already') ? 'A config with this key already exists' : msg);
     } finally {
-      setCreating(false);
+      setSubmitting(false);
     }
   };
 
-  // ── Copy snippet ─────────────────────────────────────────────────────────
+  // ── SDK snippet ───────────────────────────────────────────────────────────
 
   const copySnippet = (flag: Flag) => {
     const hookName = flag.type === 'number' ? 'useNumberFlag' : flag.type === 'json' ? 'useJSONFlag' : 'useStringFlag';
-    const defVal = displayValue(flag);
-    const snippet = `const { value } = ${hookName}('${flag.key}', ${defVal});`;
-    navigator.clipboard.writeText(snippet);
+    navigator.clipboard.writeText(`const { value } = ${hookName}('${flag.key}', ${displayValue(flag)});`);
     showSnack('SDK snippet copied');
   };
 
@@ -272,7 +366,7 @@ export default function RemoteConfigPage() {
         </Box>
       </Box>
 
-      {/* Stats row */}
+      {/* Stats */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
         {[
           { label: 'Total configs', value: flags.length, color: 'primary.main' },
@@ -287,7 +381,7 @@ export default function RemoteConfigPage() {
         <Paper sx={{ px: 3, py: 2, flex: 1 }}>
           <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>SDK Endpoint</Typography>
           <Typography variant="body2" fontFamily="monospace" sx={{ color: 'primary.main' }}>
-            GET /api/v1/config?environment={currentEnvironment}
+            POST /api/v1/config/evaluate?environment={currentEnvironment}
           </Typography>
         </Paper>
       </Box>
@@ -296,15 +390,14 @@ export default function RemoteConfigPage() {
       <Alert severity="info" sx={{ mb: 3 }}
         action={
           <Button size="small" color="inherit" onClick={() => {
-            const snippet = `import AsyncStorage from '@react-native-async-storage/async-storage';\nimport { FlexFlagProvider, useStringFlag, useNumberFlag, useJSONFlag } from '@flexflag/react-native';\n\n<FlexFlagProvider config={{ apiKey: 'YOUR_KEY', environment: '${currentEnvironment}' }} storage={AsyncStorage}>\n  <App />\n</FlexFlagProvider>`;
-            navigator.clipboard.writeText(snippet);
+            const s = `import AsyncStorage from '@react-native-async-storage/async-storage';\nimport { FlexFlagProvider, useStringFlag, useNumberFlag, useJSONFlag } from '@flexflag/react-native';\n\n<FlexFlagProvider\n  config={{ apiKey: 'YOUR_KEY', environment: '${currentEnvironment}' }}\n  storage={AsyncStorage}\n>\n  <App />\n</FlexFlagProvider>\n\n// In a component (platform + user context for targeting):\nconst client = useFlexFlagClient();\nawait client.getConfig({ userId: 'user-123', platform: 'ios' });`;
+            navigator.clipboard.writeText(s);
             showSnack('Setup snippet copied');
           }}>Copy Setup</Button>
         }
       >
-        <strong>React Native SDK</strong> — install <code>@flexflag/react-native</code> and use{' '}
-        <code>useStringFlag</code>, <code>useNumberFlag</code>, <code>useJSONFlag</code> hooks.
-        Values update every 30s without an app store release.
+        <strong>React Native SDK</strong> — install <code>@flexflag/react-native</code>.
+        Pass <code>platform: &quot;ios&quot;</code> or <code>&quot;android&quot;</code> in the context to respect platform targeting and rollout percentages.
       </Alert>
 
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
@@ -319,9 +412,7 @@ export default function RemoteConfigPage() {
           <Typography variant="body2" color="text.secondary" mb={3}>
             Add your first config value to start serving dynamic parameters to your mobile app.
           </Typography>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-            Add Config
-          </Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Add Config</Button>
         </Paper>
       ) : (
         <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
@@ -331,6 +422,8 @@ export default function RemoteConfigPage() {
                 <TableCell>Key</TableCell>
                 <TableCell>Type</TableCell>
                 <TableCell>Value ({currentEnvironment})</TableCell>
+                <TableCell>Platforms</TableCell>
+                <TableCell>Rollout</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -338,6 +431,9 @@ export default function RemoteConfigPage() {
             <TableBody>
               {flags.map(flag => {
                 const isEditing = editingKey === flag.key;
+                const platforms = getPlatforms(flag);
+                const rolloutPct = getRolloutPct(flag);
+
                 return (
                   <TableRow key={flag.key} sx={{ '&:hover': { bgcolor: 'grey.50' }, opacity: flag.enabled ? 1 : 0.6 }}>
                     <TableCell>
@@ -352,24 +448,41 @@ export default function RemoteConfigPage() {
                         sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }} />
                     </TableCell>
 
-                    <TableCell sx={{ maxWidth: 320 }}>
+                    <TableCell sx={{ maxWidth: 240 }}>
                       {isEditing ? (
                         <TextField
                           value={editValue}
                           onChange={e => setEditValue(e.target.value)}
                           size="small" fullWidth
                           multiline={flag.type === 'json'}
-                          minRows={flag.type === 'json' ? 3 : 1} maxRows={8}
+                          minRows={flag.type === 'json' ? 3 : 1} maxRows={6}
                           inputProps={{ style: { fontFamily: 'monospace', fontSize: '0.8rem' } }}
                           autoFocus
                         />
                       ) : (
                         <Typography variant="body2" fontFamily="monospace" sx={{
-                          maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis',
+                          maxWidth: 230, overflow: 'hidden', textOverflow: 'ellipsis',
                           whiteSpace: flag.type === 'json' ? 'pre' : 'nowrap', fontSize: '0.8rem',
                         }}>
                           {displayValue(flag)}
                         </Typography>
+                      )}
+                    </TableCell>
+
+                    <TableCell>
+                      <PlatformBadges platforms={platforms} />
+                    </TableCell>
+
+                    <TableCell>
+                      {rolloutPct < 100 ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <PercentIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="body2" fontWeight={600} color={rolloutPct < 50 ? 'warning.main' : 'success.main'}>
+                            {rolloutPct}%
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.disabled">100%</Typography>
                       )}
                     </TableCell>
 
@@ -384,13 +497,13 @@ export default function RemoteConfigPage() {
                         <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
                           <Tooltip title="Save">
                             <span>
-                              <IconButton size="small" color="success" onClick={() => saveEdit(flag)} disabled={saving}>
+                              <IconButton size="small" color="success" onClick={() => saveInlineEdit(flag)} disabled={saving}>
                                 {saving ? <CircularProgress size={16} /> : <CheckIcon fontSize="small" />}
                               </IconButton>
                             </span>
                           </Tooltip>
                           <Tooltip title="Cancel">
-                            <IconButton size="small" onClick={cancelEdit} disabled={saving}>
+                            <IconButton size="small" onClick={cancelInlineEdit} disabled={saving}>
                               <CloseIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
@@ -408,9 +521,14 @@ export default function RemoteConfigPage() {
                               <ToggleIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Edit value">
-                            <IconButton size="small" onClick={() => startEdit(flag)}>
+                          <Tooltip title="Edit settings">
+                            <IconButton size="small" onClick={() => openEdit(flag)}>
                               <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Quick edit value">
+                            <IconButton size="small" color="primary" onClick={() => startInlineEdit(flag)}>
+                              <TuneIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Delete">
@@ -429,110 +547,160 @@ export default function RemoteConfigPage() {
         </TableContainer>
       )}
 
-      {/* ── Create Dialog ──────────────────────────────────────────────────── */}
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
+      {/* ── Create / Edit Dialog ──────────────────────────────────────────── */}
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ pb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <TuneIcon color="primary" />
-            <Typography variant="h6" fontWeight={700}>New Remote Config</Typography>
+            <Typography variant="h6" fontWeight={700}>
+              {dialogMode === 'create' ? 'New Remote Config' : `Edit "${editTarget?.key}"`}
+            </Typography>
           </Box>
           <Typography variant="body2" color="text.secondary" mt={0.5}>
-            String, number, and JSON parameters served to your app at runtime.
+            {dialogMode === 'create'
+              ? 'String, number, and JSON parameters served to your app at runtime.'
+              : 'Update value, platform targeting, or rollout percentage.'}
           </Typography>
         </DialogTitle>
 
         <Divider />
 
         <DialogContent sx={{ pt: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-          {createError && <Alert severity="error">{createError}</Alert>}
+          {formError && <Alert severity="error">{formError}</Alert>}
 
-          {/* Type selector — choose first, it determines default value */}
-          <FormControl fullWidth size="small">
+          {/* Type */}
+          <FormControl fullWidth size="small" disabled={dialogMode === 'edit'}>
             <InputLabel>Type</InputLabel>
-            <Select
-              value={newConfig.type}
-              label="Type"
-              onChange={e => handleTypeChange(e.target.value as ConfigType)}
-            >
+            <Select value={formData.type} label="Type" onChange={e => handleTypeChange(e.target.value as ConfigType)}>
               <MenuItem value="string">
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Stack direction="row" alignItems="center" gap={1}>
                   <Chip label="string" size="small" color="info" variant="outlined" sx={{ fontSize: '0.7rem' }} />
-                  <Typography variant="body2">Text values — themes, labels, URLs, copy</Typography>
-                </Box>
+                  <Typography variant="body2">Text — themes, labels, URLs, copy</Typography>
+                </Stack>
               </MenuItem>
               <MenuItem value="number">
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Stack direction="row" alignItems="center" gap={1}>
                   <Chip label="number" size="small" color="warning" variant="outlined" sx={{ fontSize: '0.7rem' }} />
-                  <Typography variant="body2">Numeric values — timeouts, limits, percentages</Typography>
-                </Box>
+                  <Typography variant="body2">Numeric — timeouts, limits, percentages</Typography>
+                </Stack>
               </MenuItem>
               <MenuItem value="json">
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Stack direction="row" alignItems="center" gap={1}>
                   <Chip label="json" size="small" color="success" variant="outlined" sx={{ fontSize: '0.7rem' }} />
-                  <Typography variant="body2">Structured data — layouts, menus, config objects</Typography>
-                </Box>
+                  <Typography variant="body2">Structured data — layouts, menus, objects</Typography>
+                </Stack>
               </MenuItem>
             </Select>
           </FormControl>
 
+          {/* Key + Name */}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <TextField
               label="Key"
-              value={newConfig.key}
-              onChange={e => setNewConfig(p => ({ ...p, key: e.target.value.toLowerCase().replace(/\s+/g, '-') }))}
-              size="small"
-              fullWidth
+              value={formData.key}
+              onChange={e => setFormData(p => ({ ...p, key: e.target.value.toLowerCase().replace(/\s+/g, '-') }))}
+              size="small" fullWidth
               placeholder="e.g. app-theme"
-              helperText="Lowercase, hyphens only. Used in SDK calls."
+              helperText="Lowercase, hyphens only."
               inputProps={{ style: { fontFamily: 'monospace' } }}
+              disabled={dialogMode === 'edit'}
             />
             <TextField
               label="Name"
-              value={newConfig.name}
-              onChange={e => setNewConfig(p => ({ ...p, name: e.target.value }))}
-              size="small"
-              fullWidth
-              placeholder="e.g. App Theme"
+              value={formData.name}
+              onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
+              size="small" fullWidth placeholder="e.g. App Theme"
             />
           </Box>
 
           <TextField
             label="Description"
-            value={newConfig.description}
-            onChange={e => setNewConfig(p => ({ ...p, description: e.target.value }))}
-            size="small"
-            fullWidth
-            placeholder="What does this config control?"
+            value={formData.description}
+            onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
+            size="small" fullWidth placeholder="What does this config control?"
           />
 
+          {/* Default value */}
           <TextField
-            label={`Default value (${newConfig.type})`}
-            value={newConfig.value}
-            onChange={e => setNewConfig(p => ({ ...p, value: e.target.value }))}
-            size="small"
-            fullWidth
-            multiline={newConfig.type === 'json'}
-            minRows={newConfig.type === 'json' ? 4 : 1}
-            placeholder={TYPE_PLACEHOLDERS[newConfig.type]}
-            helperText={newConfig.type === 'json' ? 'Must be valid JSON' : undefined}
+            label={`Default value (${formData.type})`}
+            value={formData.value}
+            onChange={e => setFormData(p => ({ ...p, value: e.target.value }))}
+            size="small" fullWidth
+            multiline={formData.type === 'json'} minRows={formData.type === 'json' ? 4 : 1}
+            placeholder={TYPE_PLACEHOLDERS[formData.type]}
+            helperText={formData.type === 'json' ? 'Must be valid JSON' : undefined}
             inputProps={{ style: { fontFamily: 'monospace' } }}
           />
 
+          <Divider />
+
+          {/* Platform targeting */}
+          <Box>
+            <FormLabel component="legend" sx={{ fontSize: '0.875rem', fontWeight: 600, mb: 1 }}>
+              Platform targeting
+            </FormLabel>
+            <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+              Leave all unchecked to serve to all platforms.
+            </Typography>
+            <FormGroup row>
+              {ALL_PLATFORMS.map(({ value, label, icon }) => (
+                <FormControlLabel
+                  key={value}
+                  control={
+                    <Checkbox
+                      checked={formData.platforms.includes(value)}
+                      onChange={() => togglePlatform(value)}
+                      size="small"
+                    />
+                  }
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      {icon}
+                      <Typography variant="body2">{label}</Typography>
+                    </Box>
+                  }
+                />
+              ))}
+            </FormGroup>
+          </Box>
+
+          {/* Rollout percentage */}
+          <Box>
+            <FormLabel component="legend" sx={{ fontSize: '0.875rem', fontWeight: 600, mb: 0.5 }}>
+              Rollout percentage — {formData.rolloutPercentage}%
+            </FormLabel>
+            <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+              Each user gets a consistent value based on their user ID (sticky bucketing).
+              100% serves all users.
+            </Typography>
+            <Slider
+              value={formData.rolloutPercentage}
+              onChange={(_, v) => setFormData(p => ({ ...p, rolloutPercentage: v as number }))}
+              min={0} max={100} step={5}
+              marks={[
+                { value: 0, label: '0%' },
+                { value: 25, label: '25%' },
+                { value: 50, label: '50%' },
+                { value: 75, label: '75%' },
+                { value: 100, label: '100%' },
+              ]}
+              valueLabelDisplay="auto"
+              color={formData.rolloutPercentage < 50 ? 'warning' : 'primary'}
+            />
+          </Box>
+
+          <Divider />
+
+          {/* Enabled toggle */}
           <FormControlLabel
             control={
-              <Switch
-                checked={newConfig.enabled}
-                onChange={e => setNewConfig(p => ({ ...p, enabled: e.target.checked }))}
-                color="success"
-              />
+              <Switch checked={formData.enabled} onChange={e => setFormData(p => ({ ...p, enabled: e.target.checked }))} color="success" />
             }
             label={
               <Box>
-                <Typography variant="body2" fontWeight={500}>
-                  {newConfig.enabled ? 'Active' : 'Disabled'}
-                </Typography>
+                <Typography variant="body2" fontWeight={500}>{formData.enabled ? 'Active' : 'Disabled'}</Typography>
                 <Typography variant="caption" color="text.secondary">
-                  {newConfig.enabled ? 'SDK clients will receive this value immediately' : 'Not served until enabled'}
+                  {formData.enabled ? 'SDK clients will receive this value' : 'Not served until enabled'}
                 </Typography>
               </Box>
             }
@@ -542,15 +710,15 @@ export default function RemoteConfigPage() {
         <Divider />
 
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={creating}
-            startIcon={creating ? <CircularProgress size={16} /> : <AddIcon />}>
-            {creating ? 'Creating…' : 'Create Config'}
+          <Button onClick={() => setDialogOpen(false)} disabled={submitting}>Cancel</Button>
+          <Button variant="contained" onClick={handleSubmit} disabled={submitting}
+            startIcon={submitting ? <CircularProgress size={16} /> : (dialogMode === 'create' ? <AddIcon /> : <CheckIcon />)}>
+            {submitting ? (dialogMode === 'create' ? 'Creating…' : 'Saving…') : (dialogMode === 'create' ? 'Create Config' : 'Save Changes')}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* ── Delete Confirm Dialog ──────────────────────────────────────────── */}
+      {/* ── Delete Confirm ────────────────────────────────────────────────── */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Delete config?</DialogTitle>
         <DialogContent>

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"crypto/md5"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -22,9 +24,11 @@ func NewConfigHandler(repo storage.FlagRepository) *ConfigHandler {
 
 // ConfigMeta holds lightweight metadata about each config entry.
 type ConfigMeta struct {
-	Type      types.FlagType `json:"type"`
-	Enabled   bool           `json:"enabled"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	Type              types.FlagType `json:"type"`
+	Enabled           bool           `json:"enabled"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	Platforms         []string       `json:"platforms,omitempty"`          // nil = all platforms
+	RolloutPercentage *int           `json:"rollout_percentage,omitempty"` // nil = 100%
 }
 
 // ConfigResponse is the response shape for GET /config and POST /config/evaluate.
@@ -36,20 +40,25 @@ type ConfigResponse struct {
 }
 
 // ConfigEvaluateRequest is the request shape for POST /config/evaluate.
+// Platform and UserID are used for platform targeting and sticky percentage rollout.
 type ConfigEvaluateRequest struct {
 	UserID     string                 `json:"user_id"`
 	UserKey    string                 `json:"user_key"`
+	// Platform identifies the client platform: "ios", "android", or "web".
+	// When set, flags restricted to specific platforms are filtered accordingly.
+	Platform   string                 `json:"platform"`
 	Attributes map[string]interface{} `json:"attributes"`
 }
 
 // GetConfig returns all enabled remote config values (string, number, json flag types)
 // as a flat map. Boolean flags are excluded — use /evaluate for feature gates.
+// Platform filtering and rollout percentages are NOT applied here (no user context).
 //
 // @Summary     Get all remote config values
 // @Tags        config
 // @Produce     json
-// @Param       environment  query     string  false  "Environment (default: production)"
-// @Param       project_id   query     string  false  "Project ID filter"
+// @Param       environment  query  string  false  "Environment (default: production)"
+// @Param       project_id   query  string  false  "Project ID filter"
 // @Success     200  {object}  ConfigResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /config [get]
@@ -57,7 +66,6 @@ func (h *ConfigHandler) GetConfig(c *gin.Context) {
 	environment := c.DefaultQuery("environment", "production")
 	projectID := c.Query("project_id")
 
-	// API key middleware may have already resolved environment/project
 	if apiEnv, exists := c.Get("api_key_environment"); exists {
 		if env, ok := apiEnv.(string); ok && env != "" {
 			environment = env
@@ -79,25 +87,27 @@ func (h *ConfigHandler) GetConfig(c *gin.Context) {
 	metadata := make(map[string]ConfigMeta)
 
 	for _, flag := range flags {
-		// Remote config = non-boolean flag types only
 		if flag.Type == types.FlagTypeBoolean || flag.Type == types.FlagTypeVariant {
 			continue
 		}
 
+		platforms, rolloutPct := extractConfigSettings(flag.Metadata)
+		meta := ConfigMeta{
+			Type:              flag.Type,
+			Enabled:           flag.Enabled,
+			UpdatedAt:         flag.UpdatedAt,
+			Platforms:         platforms,
+			RolloutPercentage: rolloutPct,
+		}
+		metadata[flag.Key] = meta
+
+		if !flag.Enabled {
+			continue
+		}
+
 		var value interface{}
-		if jsonErr := json.Unmarshal(flag.Default, &value); jsonErr != nil {
-			value = nil
-		}
-
-		// Only include enabled flags in the config map; disabled ones appear in metadata only
-		if flag.Enabled {
+		if jsonErr := json.Unmarshal(flag.Default, &value); jsonErr == nil {
 			config[flag.Key] = value
-		}
-
-		metadata[flag.Key] = ConfigMeta{
-			Type:      flag.Type,
-			Enabled:   flag.Enabled,
-			UpdatedAt: flag.UpdatedAt,
 		}
 	}
 
@@ -109,16 +119,19 @@ func (h *ConfigHandler) GetConfig(c *gin.Context) {
 	})
 }
 
-// EvaluateConfig returns config values evaluated for a specific user context,
-// applying targeting rules (segments, attributes) if configured on the flag.
+// EvaluateConfig returns config values evaluated for a specific user context.
+// Applies in order:
+//  1. Platform filtering — skips flags not targeting the client's platform
+//  2. Percentage rollout — uses MD5(flagKey:userID) % 100 for sticky bucketing
+//  3. Targeting rules — returns variation value for the first matching rule
 //
 // @Summary     Evaluate remote config for a user context
 // @Tags        config
 // @Accept      json
 // @Produce     json
-// @Param       environment  query     string                 false  "Environment (default: production)"
-// @Param       project_id   query     string                 false  "Project ID"
-// @Param       request      body      ConfigEvaluateRequest  true   "User context"
+// @Param       environment  query  string                 false  "Environment (default: production)"
+// @Param       project_id   query  string                 false  "Project ID"
+// @Param       request      body   ConfigEvaluateRequest  true   "User context"
 // @Success     200  {object}  ConfigResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /config/evaluate [post]
@@ -138,7 +151,6 @@ func (h *ConfigHandler) EvaluateConfig(c *gin.Context) {
 	}
 
 	var req ConfigEvaluateRequest
-	// No body is fine — evaluate with no user context
 	_ = c.ShouldBindJSON(&req)
 
 	flags, err := h.listFlags(c, projectID, environment)
@@ -155,16 +167,42 @@ func (h *ConfigHandler) EvaluateConfig(c *gin.Context) {
 			continue
 		}
 
+		platforms, rolloutPct := extractConfigSettings(flag.Metadata)
 		metadata[flag.Key] = ConfigMeta{
-			Type:      flag.Type,
-			Enabled:   flag.Enabled,
-			UpdatedAt: flag.UpdatedAt,
+			Type:              flag.Type,
+			Enabled:           flag.Enabled,
+			UpdatedAt:         flag.UpdatedAt,
+			Platforms:         platforms,
+			RolloutPercentage: rolloutPct,
 		}
 
 		if !flag.Enabled {
 			continue
 		}
 
+		// 1. Platform filtering
+		if !platformAllowed(platforms, req.Platform) {
+			continue
+		}
+
+		// 2. Percentage rollout — consistent per user via MD5 bucketing
+		userID := req.UserID
+		if userID == "" {
+			userID = req.UserKey
+		}
+		if rolloutPct != nil && userID != "" {
+			bucket := configHashToPercentage(flag.Key, userID)
+			if bucket >= *rolloutPct {
+				// User is outside the rollout — serve default
+				var def interface{}
+				if err := json.Unmarshal(flag.Default, &def); err == nil {
+					config[flag.Key] = def
+				}
+				continue
+			}
+		}
+
+		// 3. Targeting rules + default
 		config[flag.Key] = h.resolveConfigValue(flag, req)
 	}
 
@@ -184,8 +222,70 @@ func (h *ConfigHandler) listFlags(c *gin.Context, projectID, environment string)
 	return h.repo.List(c.Request.Context(), environment)
 }
 
-// resolveConfigValue applies targeting rules for a flag and returns the appropriate value.
-// Falls back to the flag default if no rule matches or targeting is not configured.
+// extractConfigSettings reads platform list and rollout percentage from flag metadata.
+// These are stored as: metadata["platforms"] = ["ios","android"] and metadata["rollout_percentage"] = 75
+func extractConfigSettings(meta map[string]interface{}) (platforms []string, rolloutPct *int) {
+	if meta == nil {
+		return nil, nil
+	}
+
+	if raw, ok := meta["platforms"]; ok {
+		switch v := raw.(type) {
+		case []interface{}:
+			for _, p := range v {
+				if s, ok := p.(string); ok {
+					platforms = append(platforms, s)
+				}
+			}
+		case []string:
+			platforms = v
+		}
+	}
+
+	if raw, ok := meta["rollout_percentage"]; ok {
+		switch v := raw.(type) {
+		case float64:
+			n := int(v)
+			rolloutPct = &n
+		case int:
+			rolloutPct = &v
+		}
+	}
+
+	return platforms, rolloutPct
+}
+
+// platformAllowed returns true when the flag has no platform restriction,
+// or when the client's platform is in the flag's allowed list.
+func platformAllowed(platforms []string, clientPlatform string) bool {
+	if len(platforms) == 0 {
+		return true // no restriction — all platforms
+	}
+	if clientPlatform == "" {
+		return true // client didn't specify platform — serve it
+	}
+	for _, p := range platforms {
+		if p == clientPlatform {
+			return true
+		}
+	}
+	return false
+}
+
+// configHashToPercentage returns a deterministic bucket (0–99) for the given
+// flagKey + userID pair using MD5, matching the existing rollout evaluator approach.
+func configHashToPercentage(flagKey, userID string) int {
+	key := fmt.Sprintf("%s:%s", flagKey, userID)
+	hash := md5.Sum([]byte(key))
+	var hashInt uint32
+	for i := 0; i < 4; i++ {
+		hashInt = hashInt<<8 + uint32(hash[i])
+	}
+	return int(hashInt % 100)
+}
+
+// resolveConfigValue applies targeting rules and returns the appropriate value.
+// Falls back to the flag default if no rule matches.
 func (h *ConfigHandler) resolveConfigValue(flag *types.Flag, req ConfigEvaluateRequest) interface{} {
 	var defaultValue interface{}
 	if err := json.Unmarshal(flag.Default, &defaultValue); err != nil {
@@ -202,6 +302,9 @@ func (h *ConfigHandler) resolveConfigValue(flag *types.Flag, req ConfigEvaluateR
 	}
 	if req.UserKey != "" {
 		attrs["user_key"] = req.UserKey
+	}
+	if req.Platform != "" {
+		attrs["platform"] = req.Platform
 	}
 	for k, v := range req.Attributes {
 		attrs[k] = v

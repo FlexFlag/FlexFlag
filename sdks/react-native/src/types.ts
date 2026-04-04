@@ -5,6 +5,8 @@ export type FlagType = 'boolean' | 'string' | 'number' | 'json' | 'variant';
 export interface EvaluationContext {
   userId?: string;
   userKey?: string;
+  /** Client platform — "ios", "android", or "web". Used for platform targeting in remote config. */
+  platform?: 'ios' | 'android' | 'web';
   attributes?: Record<string, string | number | boolean>;
 }
 
