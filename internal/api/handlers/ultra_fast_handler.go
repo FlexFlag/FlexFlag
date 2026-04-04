@@ -2,10 +2,10 @@ package handlers
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
+	"hash/fnv"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 	"unsafe"
@@ -17,15 +17,16 @@ import (
 
 // PrecomputedFlag contains pre-processed flag data for ultra-fast evaluation
 type PrecomputedFlag struct {
-	Key            string
-	Enabled        bool
-	DefaultValue   interface{}  // Pre-unmarshaled
-	DefaultJSON    []byte       // Pre-marshaled for response
-	Type           types.FlagType
-	HasTargeting   bool
-	Variations     []types.Variation
-	Targeting      *types.TargetingConfig
-	LastUpdated    time.Time
+	Key              string
+	Enabled          bool
+	DefaultValue     interface{} // Pre-unmarshaled
+	DefaultJSON      []byte      // Pre-marshaled for response
+	Type             types.FlagType
+	HasTargeting     bool
+	Variations       []types.Variation
+	VariationValues  map[string]interface{} // variationID -> pre-unmarshaled value
+	Targeting        *types.TargetingConfig
+	LastUpdated      time.Time
 }
 
 // UltraFastHandler optimizes for absolute minimum latency
@@ -72,23 +73,7 @@ func (h *UltraFastHandler) preloadFlags() {
 		
 		h.mu.Lock()
 		for _, flag := range flags {
-			key := flag.Key + ":" + env
-			
-			// Pre-unmarshal default value
-			var defaultValue interface{}
-			_ = json.Unmarshal(flag.Default, &defaultValue)
-			
-			h.flags[key] = &PrecomputedFlag{
-				Key:          flag.Key,
-				Enabled:      flag.Enabled,
-				DefaultValue: defaultValue,
-				DefaultJSON:  flag.Default,
-				Type:         flag.Type,
-				HasTargeting: flag.Targeting != nil,
-				Variations:   flag.Variations,
-				Targeting:    flag.Targeting,
-				LastUpdated:  flag.UpdatedAt,
-			}
+			h.flags[flag.Key+":"+env] = buildPrecomputed(flag)
 		}
 		h.mu.Unlock()
 	}
@@ -150,21 +135,7 @@ func (h *UltraFastHandler) UltraFastEvaluate(c *gin.Context) {
 			return
 		}
 		
-		// Pre-process and cache
-		var defaultValue interface{}
-		_ = json.Unmarshal(dbFlag.Default, &defaultValue)
-		
-		flag = &PrecomputedFlag{
-			Key:          dbFlag.Key,
-			Enabled:      dbFlag.Enabled,
-			DefaultValue: defaultValue,
-			DefaultJSON:  dbFlag.Default,
-			Type:         dbFlag.Type,
-			HasTargeting: dbFlag.Targeting != nil,
-			Variations:   dbFlag.Variations,
-			Targeting:    dbFlag.Targeting,
-			LastUpdated:  dbFlag.UpdatedAt,
-		}
+		flag = buildPrecomputed(dbFlag)
 		
 		h.mu.Lock()
 		h.flags[flagKey] = flag
@@ -230,42 +201,32 @@ func (h *UltraFastHandler) fastTargetingEvaluation(flag *PrecomputedFlag, req *E
 	if flag.Targeting == nil {
 		return nil
 	}
-	
-	// Simplified targeting evaluation - just check basic rules
+
+	// Attribute-based rules — use pre-unmarshaled variation values (no json.Unmarshal on hot path)
 	for _, rule := range flag.Targeting.Rules {
 		if value, exists := req.Attributes[rule.Attribute]; exists {
-			valueStr := toString(value)
-			if h.matchesRule(valueStr, &rule) {
-				// Find variation
-				for _, variation := range flag.Variations {
-					if variation.ID == rule.Variation {
-						var varValue interface{}
-						_ = json.Unmarshal(variation.Value, &varValue)
-						return varValue
-					}
+			if h.matchesRule(toString(value), &rule) {
+				if v, ok := flag.VariationValues[rule.Variation]; ok {
+					return v
 				}
 			}
 		}
 	}
-	
-	// Check percentage rollout with minimal computation
+
+	// Percentage rollout — FNV hash, no crypto
 	if flag.Targeting.Rollout != nil {
-		bucket := h.fastHash(req.UserID + flag.Key) % 100
+		bucket := h.fastHash(req.UserID+flag.Key) % 100
 		cumulative := 0
 		for _, vr := range flag.Targeting.Rollout.Variations {
 			cumulative += vr.Weight
 			if bucket < cumulative {
-				for _, variation := range flag.Variations {
-					if variation.ID == vr.VariationID {
-						var varValue interface{}
-						_ = json.Unmarshal(variation.Value, &varValue)
-						return varValue
-					}
+				if v, ok := flag.VariationValues[vr.VariationID]; ok {
+					return v
 				}
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -282,28 +243,32 @@ func (h *UltraFastHandler) matchesRule(value string, rule *types.TargetingRule) 
 	}
 }
 
+// fastHash uses FNV-1a — ~10x faster than MD5, sufficient for bucketing.
 func (h *UltraFastHandler) fastHash(s string) int {
 	if s == "" {
 		return 0
 	}
-	// Ultra-fast hash using unsafe pointer arithmetic
-	data := (*[1000]byte)(unsafe.Pointer(unsafe.StringData(s)))[:len(s)]
-	hash := md5.Sum(data)
-	return int(hash[0]) | int(hash[1])<<8 | int(hash[2])<<16 | int(hash[3])<<24
+	data := (*[1 << 20]byte)(unsafe.Pointer(unsafe.StringData(s)))[:len(s)]
+	h64 := fnv.New64a()
+	_, _ = h64.Write(data)
+	return int(h64.Sum64() % 100)
 }
 
+// generateCacheKey builds a cache key using FNV-1a — no crypto, no allocations beyond string concat.
 func (h *UltraFastHandler) generateCacheKey(req *EvaluateRequest, environment string) string {
-	// Generate hash-based cache key for the request
-	key := req.FlagKey + ":" + environment + ":" + req.UserID
-	if len(req.Attributes) > 0 {
-		// Simple attribute serialization
-		for k, v := range req.Attributes {
-			key += ":" + k + "=" + toString(v)
-		}
+	hf := fnv.New64a()
+	_, _ = hf.Write([]byte(req.FlagKey))
+	_, _ = hf.Write([]byte{':'})
+	_, _ = hf.Write([]byte(environment))
+	_, _ = hf.Write([]byte{':'})
+	_, _ = hf.Write([]byte(req.UserID))
+	for k, v := range req.Attributes {
+		_, _ = hf.Write([]byte{':'})
+		_, _ = hf.Write([]byte(k))
+		_, _ = hf.Write([]byte{'='})
+		_, _ = hf.Write([]byte(toString(v)))
 	}
-	
-	hash := md5.Sum([]byte(key))
-	return hex.EncodeToString(hash[:8]) // Use first 8 bytes for shorter keys
+	return strconv.FormatUint(hf.Sum64(), 36) // base-36 is compact
 }
 
 func (h *UltraFastHandler) cleanupExpiredCaches() {
@@ -344,22 +309,8 @@ func (h *UltraFastHandler) RefreshFlag(flagKey, environment string) {
 		return
 	}
 	
-	// Pre-unmarshal default value
-	var defaultValue interface{}
-	_ = json.Unmarshal(flag.Default, &defaultValue)
-	
-	precomputed := &PrecomputedFlag{
-		Key:          flag.Key,
-		Enabled:      flag.Enabled,
-		DefaultValue: defaultValue,
-		DefaultJSON:  flag.Default,
-		Type:         flag.Type,
-		HasTargeting: flag.Targeting != nil,
-		Variations:   flag.Variations,
-		Targeting:    flag.Targeting,
-		LastUpdated:  flag.UpdatedAt,
-	}
-	
+	precomputed := buildPrecomputed(flag)
+
 	h.mu.Lock()
 	h.flags[flagKey+":"+environment] = precomputed
 	h.mu.Unlock()
@@ -399,6 +350,36 @@ func (h *UltraFastHandler) GetStats(c *gin.Context) {
 		"cached_responses":  cacheCount,
 		"preload_complete":  preloadComplete,
 	})
+}
+
+// buildPrecomputed creates a PrecomputedFlag from a DB flag, pre-unmarshaling all
+// variation values so the hot evaluation path never calls json.Unmarshal.
+func buildPrecomputed(flag *types.Flag) *PrecomputedFlag {
+	var defaultValue interface{}
+	_ = json.Unmarshal(flag.Default, &defaultValue)
+
+	varValues := make(map[string]interface{}, len(flag.Variations))
+	for _, v := range flag.Variations {
+		var val interface{}
+		_ = json.Unmarshal(v.Value, &val)
+		varValues[v.ID] = val
+		if v.Name != "" {
+			varValues[v.Name] = val // also index by name for rule.Variation matching
+		}
+	}
+
+	return &PrecomputedFlag{
+		Key:             flag.Key,
+		Enabled:         flag.Enabled,
+		DefaultValue:    defaultValue,
+		DefaultJSON:     flag.Default,
+		Type:            flag.Type,
+		HasTargeting:    flag.Targeting != nil,
+		Variations:      flag.Variations,
+		VariationValues: varValues,
+		Targeting:       flag.Targeting,
+		LastUpdated:     flag.UpdatedAt,
+	}
 }
 
 // Helper functions
