@@ -1,5 +1,21 @@
 version: '3.8'
 
+# Production deployment with pre-built Docker Hub images
+#
+# Usage:
+#   1. Using default registry (rizwan1998/):
+#      docker-compose -f docker-compose.prod.yml up -d
+#
+#   2. Using your own Docker Hub username:
+#      DOCKER_REGISTRY=yourusername/ docker-compose -f docker-compose.prod.yml up -d
+#
+#   3. Or create a .env file with:
+#      DOCKER_REGISTRY=yourusername/
+#      VERSION=v1.0.0
+#
+# Images will be pulled from Docker Hub if not available locally.
+# Set PULL_POLICY=always to force pull latest images.
+
 services:
   # PostgreSQL Database
   postgres:

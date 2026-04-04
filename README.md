@@ -406,10 +406,55 @@ logging:
 
 ## 🚀 Docker Deployment
 
-### Single Node Deployment
+### Using Pre-built Images from Docker Hub (Recommended)
+
+FlexFlag provides pre-built Docker images on Docker Hub for quick deployment:
 
 ```bash
-# Build Docker images
+# Pull the latest images
+docker pull <username>/flexflag-api:latest
+docker pull <username>/flexflag-ui:latest
+docker pull <username>/flexflag-migrator:latest
+
+# Or pull specific version
+docker pull <username>/flexflag-api:v1.0.0
+docker pull <username>/flexflag-ui:v1.0.0
+docker pull <username>/flexflag-migrator:v1.0.0
+```
+
+**Available images:**
+- `<username>/flexflag-api` - Go API server
+- `<username>/flexflag-ui` - Next.js frontend
+- `<username>/flexflag-migrator` - Database migration tool
+
+**Quick start with Docker Hub images:**
+
+```bash
+# 1. Copy the environment file
+cp .env.example .env
+
+# 2. Edit .env and set your Docker Hub username (optional)
+# DOCKER_REGISTRY=yourusername/
+
+# 3. Start the stack
+docker-compose -f docker-compose.prod.yml up -d
+
+# 4. Check status
+docker-compose -f docker-compose.prod.yml ps
+
+# 5. View logs
+docker-compose -f docker-compose.prod.yml logs -f
+```
+
+**Access the application:**
+- 🌐 Frontend: http://localhost:3000
+- 🚀 API: http://localhost:8080
+- 📖 API Docs: http://localhost:8080/swagger/index.html
+
+### Single Node Deployment (Build from Source)
+
+```bash
+# Build Docker images locally
 make docker-build
 
 # Run with Docker Compose
