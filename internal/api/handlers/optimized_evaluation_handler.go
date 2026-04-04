@@ -34,7 +34,7 @@ func NewOptimizedEvaluationHandler(repo storage.FlagRepository, counter *analyti
 
 func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 	startTime := time.Now()
-	
+
 	var req EvaluateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -43,7 +43,7 @@ func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 
 	environment := c.DefaultQuery("environment", "production")
 	projectID := c.Query("project_id")
-	
+
 	// If API key authentication is used, override environment and project from key
 	if apiKeyEnv, exists := c.Get("environment"); exists {
 		environment = apiKeyEnv.(string)
@@ -66,16 +66,24 @@ func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "flag not found"})
 			return
 		}
-		
+
 		// Store in cache for next time
 		h.cache.Set(c.Request.Context(), req.FlagKey, environment, flag)
+	}
+
+	// Analytics: record every evaluation via defer so early returns are also captured.
+	var analyticsVariation string
+	if h.counter != nil {
+		defer func() {
+			h.counter.Record(flag.Key, environment, req.UserID, analyticsVariation)
+		}()
 	}
 
 	// Fast path for disabled flags
 	if !flag.Enabled {
 		var value interface{}
 		_ = json.Unmarshal(flag.Default, &value)
-		
+
 		evalTime := float64(time.Since(startTime).Microseconds()) / 1000.0
 		c.JSON(http.StatusOK, EvaluateResponse{
 			FlagKey:        flag.Key,
@@ -107,6 +115,8 @@ func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 		return
 	}
 
+	analyticsVariation = evalResp.Variation
+
 	// Calculate evaluation time
 	evalTime := float64(time.Since(startTime).Microseconds()) / 1000.0
 
@@ -123,10 +133,6 @@ func (h *OptimizedEvaluationHandler) FastEvaluate(c *gin.Context) {
 		Default:        evalResp.Default,
 		EvaluationTime: evalTime,
 		Timestamp:      evalResp.Timestamp,
-	}
-
-	if h.counter != nil {
-		h.counter.Record(flag.Key, environment, req.UserID, evalResp.Variation)
 	}
 
 	c.JSON(http.StatusOK, response)

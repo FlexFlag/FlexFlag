@@ -68,7 +68,7 @@ type EvaluateResponse struct {
 // @Router /evaluate [post]
 func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 	startTime := time.Now()
-	
+
 	var req EvaluateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -78,7 +78,7 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 	// Use environment from API key if available, otherwise from query parameter
 	environment := c.DefaultQuery("environment", "production")
 	projectID := c.Query("project_id")
-	
+
 	// If API key authentication is used, override environment and project from key
 	if apiKeyEnv, exists := c.Get("environment"); exists {
 		environment = apiKeyEnv.(string)
@@ -90,7 +90,7 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 	// Fetch flag from database - need to use project-specific method
 	var flag *types.Flag
 	var err error
-	
+
 	if projectID != "" {
 		flag, err = h.repo.GetByProjectKey(c.Request.Context(), projectID, req.FlagKey, environment)
 	} else {
@@ -101,11 +101,20 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 		return
 	}
 
+	// Analytics: record every evaluation regardless of which path returns.
+	// variation is filled in below by whichever path handles the request.
+	var analyticsVariation string
+	if h.counter != nil {
+		defer func() {
+			h.counter.Record(flag.Key, environment, req.UserID, analyticsVariation)
+		}()
+	}
+
 	// If flag is disabled, return default value immediately
 	if !flag.Enabled {
 		var value interface{}
 		_ = json.Unmarshal(flag.Default, &value)
-		
+
 		evalTime := float64(time.Since(startTime).Microseconds()) / 1000.0
 		c.JSON(http.StatusOK, EvaluateResponse{
 			FlagKey:        flag.Key,
@@ -182,6 +191,7 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 					// Find the variation in the flag
 					for _, variation := range flag.Variations {
 						if variation.ID == result.VariationID {
+							analyticsVariation = variation.ID
 							evalTime := float64(time.Since(startTime).Microseconds()) / 1000.0
 							c.JSON(http.StatusOK, EvaluateResponse{
 								FlagKey:        flag.Key,
@@ -252,6 +262,7 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 			// Find the variation for this assignment
 			for _, variation := range flag.Variations {
 				if variation.ID == stickyAssignment.VariationID {
+					analyticsVariation = variation.ID
 					evalTime := float64(time.Since(startTime).Microseconds()) / 1000.0
 					c.JSON(http.StatusOK, EvaluateResponse{
 						FlagKey:        flag.Key,
@@ -282,15 +293,17 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 	var value interface{}
 	_ = json.Unmarshal(evalResp.Value, &value)
 
+	analyticsVariation = evalResp.Variation
+
 	// Create sticky assignment for variant flags if sticky bucketing is enabled and user got a variation
-	if flag.Type == "variant" && flag.Targeting != nil && flag.Targeting.Rollout != nil && 
+	if flag.Type == "variant" && flag.Targeting != nil && flag.Targeting.Rollout != nil &&
 		flag.Targeting.Rollout.StickyBucketing && evalResp.Variation != "" && !evalResp.Default {
-		
+
 		userKey := req.UserKey
 		if userKey == "" {
 			userKey = req.UserID
 		}
-		
+
 		// Check if assignment doesn't already exist
 		existingAssignment, _ := h.rolloutRepo.GetStickyAssignment(c.Request.Context(), flag.ID, environment, userKey)
 		if existingAssignment == nil {
@@ -315,10 +328,6 @@ func (h *EvaluationHandler) Evaluate(c *gin.Context) {
 		Default:        evalResp.Default,
 		EvaluationTime: evalTime,
 		Timestamp:      evalResp.Timestamp,
-	}
-
-	if h.counter != nil {
-		h.counter.Record(flag.Key, environment, req.UserID, evalResp.Variation)
 	}
 
 	c.JSON(http.StatusOK, response)
