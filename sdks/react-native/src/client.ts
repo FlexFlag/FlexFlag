@@ -17,9 +17,23 @@ const DEFAULT_PERSISTENCE_KEY = 'flexflag_cache';
 type EventType = 'ready' | 'update' | 'error';
 type Listener = (...args: unknown[]) => void;
 
+/** Detect platform automatically from React Native's Platform API. Returns undefined outside RN. */
+function detectPlatform(): 'ios' | 'android' | undefined {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { Platform } = require('react-native');
+    if (Platform.OS === 'ios') return 'ios';
+    if (Platform.OS === 'android') return 'android';
+  } catch {
+    // Not in React Native — web or Node environment
+  }
+  return undefined;
+}
+
 export class FlexFlagClient {
   private readonly config: Required<FlexFlagConfig>;
   private readonly http: AxiosInstance;
+  private readonly platform: 'ios' | 'android' | undefined;
   private cache: Map<string, CachedEvaluation> = new Map();
   private configCache: ConfigResult | null = null;
   private pollingTimer: ReturnType<typeof setInterval> | null = null;
@@ -39,6 +53,10 @@ export class FlexFlagClient {
       cacheTtl: DEFAULT_CACHE_TTL,
       ...config,
     };
+
+    // Auto-detect platform once at construction time.
+    // Callers can still override via context.platform in individual calls.
+    this.platform = detectPlatform();
 
     this.http = axios.create({
       baseURL: `${this.config.baseUrl}/api/v1`,
@@ -60,15 +78,13 @@ export class FlexFlagClient {
       await this.loadFromStorage();
     }
 
-    // Start AppState listener for foreground reconnection (React Native only)
     this.attachAppStateListener();
 
     try {
       await this.fetchAllFlags();
       this.ready = true;
       this.emit('ready');
-    } catch (err) {
-      // Start from offline defaults if network fails
+    } catch {
       this.ready = true;
       this.emit('ready');
     }
@@ -79,7 +95,8 @@ export class FlexFlagClient {
   }
 
   /**
-   * Evaluate a flag and return the full result including reason and variation.
+   * Evaluate a flag and return the full result.
+   * Platform is automatically included — no need to specify it manually.
    */
   async evaluate(
     flagKey: string,
@@ -98,7 +115,8 @@ export class FlexFlagClient {
         flag_key: flagKey,
         user_id: context?.userId,
         user_key: context?.userKey,
-        platform: context?.platform,
+        // Auto-detected platform; context.platform overrides if explicitly provided
+        platform: context?.platform ?? this.platform,
         attributes: context?.attributes,
       }, {
         params: { environment: this.config.environment },
@@ -150,27 +168,18 @@ export class FlexFlagClient {
   }
 
   /**
-   * Fetch all remote config values (string, number, json flags) in one request.
-   * Ideal to call on app startup to warm the config cache.
+   * Fetch all remote config values for this environment.
+   * Platform is auto-detected — iOS clients get iOS values, Android gets Android values.
+   * Call this at app startup to warm the config cache.
    */
   async getConfig(context?: EvaluationContext): Promise<ConfigResult> {
     try {
-      const method = context ? 'post' : 'get';
-      const payload = context ? {
-        user_id: context.userId,
-        user_key: context.userKey,
-        attributes: context.attributes,
-      } : undefined;
-
-      const response = await this.http.request({
-        method,
-        url: context ? '/config/evaluate' : '/config',
-        data: context ? {
-          user_id: context.userId,
-          user_key: context.userKey,
-          platform: context.platform,
-          attributes: context.attributes,
-        } : undefined,
+      const response = await this.http.post('/config/evaluate', {
+        user_id: context?.userId,
+        user_key: context?.userKey,
+        platform: context?.platform ?? this.platform,
+        attributes: context?.attributes,
+      }, {
         params: { environment: this.config.environment },
       });
 
@@ -193,10 +202,12 @@ export class FlexFlagClient {
     return val as T;
   }
 
-  /**
-   * Update the default user context for all evaluations.
-   */
-  setContext(context: EvaluationContext): void {
+  /** Returns the auto-detected platform ("ios" | "android" | undefined). */
+  getPlatform(): 'ios' | 'android' | undefined {
+    return this.platform;
+  }
+
+  setContext(_context: EvaluationContext): void {
     this.cache.clear();
   }
 
@@ -215,9 +226,6 @@ export class FlexFlagClient {
     return this.ready;
   }
 
-  /**
-   * Stop polling and persist cache to storage.
-   */
   async close(): Promise<void> {
     this.stopPolling();
     this.detachAppStateListener();
@@ -227,7 +235,6 @@ export class FlexFlagClient {
   // ─── Private ────────────────────────────────────────────────────────────────
 
   private async fetchAllFlags(): Promise<void> {
-    // Batch fetch all flags for the environment to warm the cache
     const response = await this.http.get('/flags', {
       params: { environment: this.config.environment },
     });
@@ -281,13 +288,12 @@ export class FlexFlagClient {
       const { AppState } = require('react-native');
       this.appStateSubscription = AppState.addEventListener('change', (state: string) => {
         if (state === 'active') {
-          // App came to foreground — refresh flags immediately
           this.cache.clear();
           this.fetchAllFlags().catch(() => {});
         }
       });
     } catch {
-      // Not in React Native environment — skip AppState
+      // Not in React Native — skip
     }
   }
 
@@ -304,8 +310,6 @@ export class FlexFlagClient {
       const raw = await this.storage.getItem(this.config.persistenceKey);
       if (!raw) return;
       const state: PersistedState = JSON.parse(raw);
-
-      // Restore evaluations that haven't expired
       const now = Date.now();
       for (const [key, entry] of Object.entries(state.evaluations ?? {})) {
         if (now - entry.cachedAt < entry.ttl) {
@@ -340,7 +344,8 @@ export class FlexFlagClient {
 
   private buildCacheKey(flagKey: string, context?: EvaluationContext): string {
     const userId = context?.userId ?? '_';
-    return `${this.config.environment}:${flagKey}:${userId}`;
+    const platform = context?.platform ?? this.platform ?? '_';
+    return `${this.config.environment}:${flagKey}:${userId}:${platform}`;
   }
 
   private emit(event: EventType, ...args: unknown[]): void {

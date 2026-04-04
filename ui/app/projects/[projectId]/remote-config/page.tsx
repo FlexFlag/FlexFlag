@@ -30,8 +30,6 @@ import {
   Switch,
   Divider,
   Slider,
-  FormGroup,
-  Checkbox,
   FormLabel,
   Stack,
 } from '@mui/material';
@@ -49,6 +47,7 @@ import {
   Apple as AppleIcon,
   Web as WebIcon,
   Percent as PercentIcon,
+  DevicesOther as AllPlatformsIcon,
 } from '@mui/icons-material';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
@@ -57,8 +56,7 @@ import { useEnvironment } from '@/contexts/EnvironmentContext';
 import { Flag } from '@/types';
 
 type ConfigType = 'string' | 'number' | 'json';
-type Platform = 'ios' | 'android' | 'web';
-type ConfigFlag = Flag;
+type PlatformValues = { ios: string; android: string; web: string };
 
 const TYPE_COLORS: Record<string, 'info' | 'warning' | 'success' | 'default'> = {
   string: 'info',
@@ -72,38 +70,34 @@ const TYPE_PLACEHOLDERS: Record<ConfigType, string> = {
   json: 'e.g. {"key": "value"}',
 };
 
-const ALL_PLATFORMS: { value: Platform; label: string; icon: React.ReactNode }[] = [
-  { value: 'ios', label: 'iOS', icon: <AppleIcon sx={{ fontSize: 16 }} /> },
-  { value: 'android', label: 'Android', icon: <AndroidIcon sx={{ fontSize: 16 }} /> },
-  { value: 'web', label: 'Web', icon: <WebIcon sx={{ fontSize: 16 }} /> },
+const PLATFORMS = [
+  { key: 'ios' as const, label: 'iOS', Icon: AppleIcon },
+  { key: 'android' as const, label: 'Android', Icon: AndroidIcon },
+  { key: 'web' as const, label: 'Web', Icon: WebIcon },
 ];
 
-const DEFAULT_NEW_CONFIG = {
+const DEFAULT_FORM = {
   key: '',
   name: '',
   description: '',
   type: 'string' as ConfigType,
-  value: '',
+  defaultValue: '',
   enabled: true,
-  platforms: [] as Platform[],   // empty = all platforms
   rolloutPercentage: 100,
+  platformValues: { ios: '', android: '', web: '' } as PlatformValues,
 };
 
-function displayValue(flag: Flag): string {
-  const val = flag.default;
-  if (val === null || val === undefined) return '—';
-  if (typeof val === 'object') return JSON.stringify(val);
-  return String(val);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function displayValue(v: unknown): string {
+  if (v === null || v === undefined) return '—';
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
 }
 
 function parseValue(raw: string, type: string): unknown {
-  if (type === 'number') {
-    const n = Number(raw);
-    return isNaN(n) ? 0 : n;
-  }
-  if (type === 'json') {
-    try { return JSON.parse(raw); } catch { return raw; }
-  }
+  if (type === 'number') { const n = Number(raw); return isNaN(n) ? 0 : n; }
+  if (type === 'json') { try { return JSON.parse(raw); } catch { return raw; } }
   return raw;
 }
 
@@ -113,56 +107,73 @@ function defaultForType(type: ConfigType): string {
   return '';
 }
 
-function getPlatforms(flag: Flag): Platform[] {
-  return (flag.metadata?.platforms as Platform[]) ?? [];
+function getPlatformValues(flag: Flag): PlatformValues {
+  const pv = flag.metadata?.platform_values as Record<string, unknown> | undefined;
+  return {
+    ios: pv?.ios !== undefined ? displayValue(pv.ios) : '',
+    android: pv?.android !== undefined ? displayValue(pv.android) : '',
+    web: pv?.web !== undefined ? displayValue(pv.web) : '',
+  };
 }
 
 function getRolloutPct(flag: Flag): number {
   return (flag.metadata?.rollout_percentage as number) ?? 100;
 }
 
-function PlatformBadges({ platforms }: { platforms: Platform[] }) {
-  if (platforms.length === 0) return <Chip label="All platforms" size="small" variant="outlined" color="default" sx={{ fontSize: '0.7rem' }} />;
+/** Summarise which platforms have custom values for display in the table. */
+function PlatformValueSummary({ flag }: { flag: Flag }) {
+  const pv = flag.metadata?.platform_values as Record<string, unknown> | undefined;
+  if (!pv || Object.keys(pv).length === 0) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.disabled' }}>
+        <AllPlatformsIcon sx={{ fontSize: 14 }} />
+        <Typography variant="caption">All</Typography>
+      </Box>
+    );
+  }
   return (
-    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-      {platforms.map(p => (
-        <Chip
-          key={p}
-          label={p}
-          size="small"
-          variant="outlined"
-          icon={p === 'ios' ? <AppleIcon /> : p === 'android' ? <AndroidIcon /> : <WebIcon />}
-          sx={{ fontSize: '0.7rem' }}
-        />
+    <Stack direction="row" spacing={0.5} flexWrap="wrap">
+      {PLATFORMS.filter(p => pv[p.key] !== undefined).map(({ key, Icon }) => (
+        <Tooltip key={key} title={`${key}: ${displayValue(pv[key])}`}>
+          <Chip
+            icon={<Icon sx={{ fontSize: '0.8rem !important' }} />}
+            label={displayValue(pv[key])}
+            size="small"
+            variant="outlined"
+            sx={{ fontSize: '0.7rem', maxWidth: 90, '.MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
+          />
+        </Tooltip>
       ))}
-    </Box>
+    </Stack>
   );
 }
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RemoteConfigPage() {
   const params = useParams();
   const projectId = params.projectId as string;
   const { currentEnvironment } = useEnvironment();
 
-  const [flags, setFlags] = useState<ConfigFlag[]>([]);
+  const [flags, setFlags] = useState<Flag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Inline edit state
+  // Inline value edit
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Create / Edit dialog state
+  // Create / Edit dialog
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({ ...DEFAULT_NEW_CONFIG });
-  const [editTarget, setEditTarget] = useState<ConfigFlag | null>(null);
+  const [formData, setFormData] = useState({ ...DEFAULT_FORM });
+  const [editTarget, setEditTarget] = useState<Flag | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Delete confirm state
-  const [deleteTarget, setDeleteTarget] = useState<ConfigFlag | null>(null);
+  // Delete
+  const [deleteTarget, setDeleteTarget] = useState<Flag | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
@@ -187,9 +198,9 @@ export default function RemoteConfigPage() {
 
   useEffect(() => { loadFlags(); }, [loadFlags]);
 
-  // ── Inline value edit ────────────────────────────────────────────────────
+  // ── Inline edit ────────────────────────────────────────────────────────────
 
-  const startInlineEdit = (flag: ConfigFlag) => {
+  const startInlineEdit = (flag: Flag) => {
     setEditingKey(flag.key);
     const val = flag.default;
     setEditValue(typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val ?? ''));
@@ -197,11 +208,10 @@ export default function RemoteConfigPage() {
 
   const cancelInlineEdit = () => { setEditingKey(null); setEditValue(''); };
 
-  const saveInlineEdit = async (flag: ConfigFlag) => {
+  const saveInlineEdit = async (flag: Flag) => {
     setSaving(true);
     try {
-      const parsed = parseValue(editValue, flag.type);
-      await apiClient.updateFlag(flag.key, { ...flag, default: parsed }, currentEnvironment);
+      await apiClient.updateFlag(flag.key, { ...flag, default: parseValue(editValue, flag.type) }, currentEnvironment);
       showSnack(`"${flag.key}" updated`);
       cancelInlineEdit();
       await loadFlags();
@@ -212,9 +222,9 @@ export default function RemoteConfigPage() {
     }
   };
 
-  // ── Toggle ────────────────────────────────────────────────────────────────
+  // ── Toggle ─────────────────────────────────────────────────────────────────
 
-  const toggleFlag = async (flag: ConfigFlag) => {
+  const toggleFlag = async (flag: Flag) => {
     try {
       await apiClient.toggleFlag(flag.key, currentEnvironment, projectId);
       showSnack(`"${flag.key}" ${flag.enabled ? 'disabled' : 'enabled'}`);
@@ -224,7 +234,7 @@ export default function RemoteConfigPage() {
     }
   };
 
-  // ── Delete ────────────────────────────────────────────────────────────────
+  // ── Delete ─────────────────────────────────────────────────────────────────
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -241,17 +251,17 @@ export default function RemoteConfigPage() {
     }
   };
 
-  // ── Create / Edit dialog ─────────────────────────────────────────────────
+  // ── Dialog ─────────────────────────────────────────────────────────────────
 
   const openCreate = () => {
     setDialogMode('create');
-    setFormData({ ...DEFAULT_NEW_CONFIG });
+    setFormData({ ...DEFAULT_FORM });
     setFormError(null);
     setEditTarget(null);
     setDialogOpen(true);
   };
 
-  const openEdit = (flag: ConfigFlag) => {
+  const openEdit = (flag: Flag) => {
     setDialogMode('edit');
     setFormError(null);
     setEditTarget(flag);
@@ -260,31 +270,42 @@ export default function RemoteConfigPage() {
       name: flag.name,
       description: flag.description ?? '',
       type: flag.type as ConfigType,
-      value: typeof flag.default === 'object' ? JSON.stringify(flag.default, null, 2) : String(flag.default ?? ''),
+      defaultValue: typeof flag.default === 'object' ? JSON.stringify(flag.default, null, 2) : String(flag.default ?? ''),
       enabled: flag.enabled,
-      platforms: getPlatforms(flag),
       rolloutPercentage: getRolloutPct(flag),
+      platformValues: getPlatformValues(flag),
     });
     setDialogOpen(true);
   };
 
   const handleTypeChange = (type: ConfigType) => {
-    setFormData(prev => ({ ...prev, type, value: defaultForType(type) }));
-  };
-
-  const togglePlatform = (p: Platform) => {
     setFormData(prev => ({
       ...prev,
-      platforms: prev.platforms.includes(p)
-        ? prev.platforms.filter(x => x !== p)
-        : [...prev.platforms, p],
+      type,
+      defaultValue: defaultForType(type),
+      platformValues: { ios: '', android: '', web: '' },
     }));
+  };
+
+  const setPlatformValue = (platform: keyof PlatformValues, value: string) => {
+    setFormData(prev => ({ ...prev, platformValues: { ...prev.platformValues, [platform]: value } }));
   };
 
   const buildMetadata = () => {
     const meta: Record<string, unknown> = {};
-    if (formData.platforms.length > 0) meta.platforms = formData.platforms;
+
+    // Per-platform values — only include platforms that have a non-empty override
+    const pv: Record<string, unknown> = {};
+    for (const p of PLATFORMS) {
+      const raw = formData.platformValues[p.key].trim();
+      if (raw !== '') {
+        pv[p.key] = parseValue(raw, formData.type);
+      }
+    }
+    if (Object.keys(pv).length > 0) meta.platform_values = pv;
+
     if (formData.rolloutPercentage < 100) meta.rollout_percentage = formData.rolloutPercentage;
+
     return Object.keys(meta).length > 0 ? meta : undefined;
   };
 
@@ -292,9 +313,19 @@ export default function RemoteConfigPage() {
     if (!formData.key.trim()) return 'Key is required';
     if (!formData.name.trim()) return 'Name is required';
     if (formData.type === 'json') {
-      try { JSON.parse(formData.value); } catch { return 'Invalid JSON value'; }
+      try { JSON.parse(formData.defaultValue); } catch { return 'Default value must be valid JSON'; }
+      for (const p of PLATFORMS) {
+        const raw = formData.platformValues[p.key].trim();
+        if (raw) { try { JSON.parse(raw); } catch { return `${p.label} value must be valid JSON`; } }
+      }
     }
-    if (formData.type === 'number' && isNaN(Number(formData.value))) return 'Value must be a number';
+    if (formData.type === 'number') {
+      if (isNaN(Number(formData.defaultValue))) return 'Default value must be a number';
+      for (const p of PLATFORMS) {
+        const raw = formData.platformValues[p.key].trim();
+        if (raw && isNaN(Number(raw))) return `${p.label} value must be a number`;
+      }
+    }
     return null;
   };
 
@@ -310,7 +341,7 @@ export default function RemoteConfigPage() {
       description: formData.description.trim() || undefined,
       type: formData.type,
       enabled: formData.enabled,
-      default: parseValue(formData.value, formData.type),
+      default: parseValue(formData.defaultValue, formData.type),
       project_id: projectId,
       metadata: buildMetadata(),
     };
@@ -333,11 +364,11 @@ export default function RemoteConfigPage() {
     }
   };
 
-  // ── SDK snippet ───────────────────────────────────────────────────────────
+  // ── SDK snippet ────────────────────────────────────────────────────────────
 
   const copySnippet = (flag: Flag) => {
-    const hookName = flag.type === 'number' ? 'useNumberFlag' : flag.type === 'json' ? 'useJSONFlag' : 'useStringFlag';
-    navigator.clipboard.writeText(`const { value } = ${hookName}('${flag.key}', ${displayValue(flag)});`);
+    const hook = flag.type === 'number' ? 'useNumberFlag' : flag.type === 'json' ? 'useJSONFlag' : 'useStringFlag';
+    navigator.clipboard.writeText(`const { value } = ${hook}('${flag.key}', ${displayValue(flag.default)});`);
     showSnack('SDK snippet copied');
   };
 
@@ -352,7 +383,7 @@ export default function RemoteConfigPage() {
           <Box>
             <Typography variant="h4" fontWeight={700}>Remote Config</Typography>
             <Typography variant="body2" color="text.secondary">
-              String, number, and JSON values served to your mobile apps — no app store release required
+              One flag, right value per platform — iOS, Android, and Web handled automatically
             </Typography>
           </Box>
         </Box>
@@ -360,9 +391,7 @@ export default function RemoteConfigPage() {
           <Tooltip title="Refresh">
             <IconButton onClick={loadFlags} disabled={loading}><RefreshIcon /></IconButton>
           </Tooltip>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-            Add Config
-          </Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Add Config</Button>
         </Box>
       </Box>
 
@@ -379,9 +408,9 @@ export default function RemoteConfigPage() {
           </Paper>
         ))}
         <Paper sx={{ px: 3, py: 2, flex: 1 }}>
-          <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>SDK Endpoint</Typography>
-          <Typography variant="body2" fontFamily="monospace" sx={{ color: 'primary.main' }}>
-            POST /api/v1/config/evaluate?environment={currentEnvironment}
+          <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>How it works</Typography>
+          <Typography variant="body2" color="text.secondary">
+            SDK auto-detects platform. One flag key returns the right value for iOS, Android, or Web — no conditionals in your code.
           </Typography>
         </Paper>
       </Box>
@@ -390,14 +419,15 @@ export default function RemoteConfigPage() {
       <Alert severity="info" sx={{ mb: 3 }}
         action={
           <Button size="small" color="inherit" onClick={() => {
-            const s = `import AsyncStorage from '@react-native-async-storage/async-storage';\nimport { FlexFlagProvider, useStringFlag, useNumberFlag, useJSONFlag } from '@flexflag/react-native';\n\n<FlexFlagProvider\n  config={{ apiKey: 'YOUR_KEY', environment: '${currentEnvironment}' }}\n  storage={AsyncStorage}\n>\n  <App />\n</FlexFlagProvider>\n\n// In a component (platform + user context for targeting):\nconst client = useFlexFlagClient();\nawait client.getConfig({ userId: 'user-123', platform: 'ios' });`;
-            navigator.clipboard.writeText(s);
-            showSnack('Setup snippet copied');
-          }}>Copy Setup</Button>
+            navigator.clipboard.writeText(
+              `// Same call everywhere — SDK sends platform automatically\nconst { value: theme } = useStringFlag('app-theme', 'light');\n// → 'dark' on iOS, 'light' on Android (configured in dashboard)`
+            );
+            showSnack('Snippet copied');
+          }}>Copy</Button>
         }
       >
-        <strong>React Native SDK</strong> — install <code>@flexflag/react-native</code>.
-        Pass <code>platform: &quot;ios&quot;</code> or <code>&quot;android&quot;</code> in the context to respect platform targeting and rollout percentages.
+        <strong>No platform checks in your code.</strong> The SDK detects iOS/Android via <code>Platform.OS</code> and the server returns the right value automatically.
+        Set per-platform overrides in the dashboard — your code stays clean.
       </Alert>
 
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
@@ -410,7 +440,7 @@ export default function RemoteConfigPage() {
           <TuneIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 2 }} />
           <Typography variant="h6" color="text.secondary" gutterBottom>No remote config entries yet</Typography>
           <Typography variant="body2" color="text.secondary" mb={3}>
-            Add your first config value to start serving dynamic parameters to your mobile app.
+            Add your first config — set different values per platform or one value for all.
           </Typography>
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Add Config</Button>
         </Paper>
@@ -421,8 +451,8 @@ export default function RemoteConfigPage() {
               <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: 'grey.50' } }}>
                 <TableCell>Key</TableCell>
                 <TableCell>Type</TableCell>
-                <TableCell>Value ({currentEnvironment})</TableCell>
-                <TableCell>Platforms</TableCell>
+                <TableCell>Default value</TableCell>
+                <TableCell>Platform overrides</TableCell>
                 <TableCell>Rollout</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
@@ -431,7 +461,6 @@ export default function RemoteConfigPage() {
             <TableBody>
               {flags.map(flag => {
                 const isEditing = editingKey === flag.key;
-                const platforms = getPlatforms(flag);
                 const rolloutPct = getRolloutPct(flag);
 
                 return (
@@ -448,36 +477,35 @@ export default function RemoteConfigPage() {
                         sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }} />
                     </TableCell>
 
-                    <TableCell sx={{ maxWidth: 240 }}>
+                    {/* Default value (inline editable) */}
+                    <TableCell sx={{ maxWidth: 200 }}>
                       {isEditing ? (
-                        <TextField
-                          value={editValue}
-                          onChange={e => setEditValue(e.target.value)}
+                        <TextField value={editValue} onChange={e => setEditValue(e.target.value)}
                           size="small" fullWidth
-                          multiline={flag.type === 'json'}
-                          minRows={flag.type === 'json' ? 3 : 1} maxRows={6}
-                          inputProps={{ style: { fontFamily: 'monospace', fontSize: '0.8rem' } }}
-                          autoFocus
-                        />
+                          multiline={flag.type === 'json'} minRows={flag.type === 'json' ? 3 : 1} maxRows={6}
+                          inputProps={{ style: { fontFamily: 'monospace', fontSize: '0.8rem' } }} autoFocus />
                       ) : (
                         <Typography variant="body2" fontFamily="monospace" sx={{
-                          maxWidth: 230, overflow: 'hidden', textOverflow: 'ellipsis',
+                          maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis',
                           whiteSpace: flag.type === 'json' ? 'pre' : 'nowrap', fontSize: '0.8rem',
                         }}>
-                          {displayValue(flag)}
+                          {displayValue(flag.default)}
                         </Typography>
                       )}
                     </TableCell>
 
-                    <TableCell>
-                      <PlatformBadges platforms={platforms} />
+                    {/* Per-platform values */}
+                    <TableCell sx={{ minWidth: 160 }}>
+                      <PlatformValueSummary flag={flag} />
                     </TableCell>
 
+                    {/* Rollout % */}
                     <TableCell>
                       {rolloutPct < 100 ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <PercentIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                          <Typography variant="body2" fontWeight={600} color={rolloutPct < 50 ? 'warning.main' : 'success.main'}>
+                          <Typography variant="body2" fontWeight={600}
+                            color={rolloutPct < 50 ? 'warning.main' : 'success.main'}>
                             {rolloutPct}%
                           </Typography>
                         </Box>
@@ -495,7 +523,7 @@ export default function RemoteConfigPage() {
                     <TableCell align="right">
                       {isEditing ? (
                         <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                          <Tooltip title="Save">
+                          <Tooltip title="Save default value">
                             <span>
                               <IconButton size="small" color="success" onClick={() => saveInlineEdit(flag)} disabled={saving}>
                                 {saving ? <CircularProgress size={16} /> : <CheckIcon fontSize="small" />}
@@ -521,14 +549,9 @@ export default function RemoteConfigPage() {
                               <ToggleIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Edit settings">
+                          <Tooltip title="Edit config">
                             <IconButton size="small" onClick={() => openEdit(flag)}>
                               <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Quick edit value">
-                            <IconButton size="small" color="primary" onClick={() => startInlineEdit(flag)}>
-                              <TuneIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Delete">
@@ -557,9 +580,8 @@ export default function RemoteConfigPage() {
             </Typography>
           </Box>
           <Typography variant="body2" color="text.secondary" mt={0.5}>
-            {dialogMode === 'create'
-              ? 'String, number, and JSON parameters served to your app at runtime.'
-              : 'Update value, platform targeting, or rollout percentage.'}
+            Set a default value, then optionally override it per platform.
+            The SDK sends the platform automatically — your code stays the same on all platforms.
           </Typography>
         </DialogTitle>
 
@@ -595,95 +617,86 @@ export default function RemoteConfigPage() {
 
           {/* Key + Name */}
           <Box sx={{ display: 'flex', gap: 2 }}>
-            <TextField
-              label="Key"
-              value={formData.key}
+            <TextField label="Key" value={formData.key}
               onChange={e => setFormData(p => ({ ...p, key: e.target.value.toLowerCase().replace(/\s+/g, '-') }))}
-              size="small" fullWidth
-              placeholder="e.g. app-theme"
-              helperText="Lowercase, hyphens only."
+              size="small" fullWidth placeholder="e.g. app-theme"
+              helperText="Same key across all platforms."
               inputProps={{ style: { fontFamily: 'monospace' } }}
-              disabled={dialogMode === 'edit'}
-            />
-            <TextField
-              label="Name"
-              value={formData.name}
+              disabled={dialogMode === 'edit'} />
+            <TextField label="Name" value={formData.name}
               onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
-              size="small" fullWidth placeholder="e.g. App Theme"
-            />
+              size="small" fullWidth placeholder="e.g. App Theme" />
           </Box>
 
-          <TextField
-            label="Description"
-            value={formData.description}
+          <TextField label="Description" value={formData.description}
             onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
-            size="small" fullWidth placeholder="What does this config control?"
-          />
-
-          {/* Default value */}
-          <TextField
-            label={`Default value (${formData.type})`}
-            value={formData.value}
-            onChange={e => setFormData(p => ({ ...p, value: e.target.value }))}
-            size="small" fullWidth
-            multiline={formData.type === 'json'} minRows={formData.type === 'json' ? 4 : 1}
-            placeholder={TYPE_PLACEHOLDERS[formData.type]}
-            helperText={formData.type === 'json' ? 'Must be valid JSON' : undefined}
-            inputProps={{ style: { fontFamily: 'monospace' } }}
-          />
+            size="small" fullWidth placeholder="What does this config control?" />
 
           <Divider />
 
-          {/* Platform targeting */}
+          {/* Values section */}
           <Box>
-            <FormLabel component="legend" sx={{ fontSize: '0.875rem', fontWeight: 600, mb: 1 }}>
-              Platform targeting
+            <FormLabel sx={{ fontSize: '0.875rem', fontWeight: 600, mb: 0.5, display: 'block' }}>
+              Values
             </FormLabel>
-            <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
-              Leave all unchecked to serve to all platforms.
+            <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+              Set a default, then override for specific platforms. Leave a platform blank to use the default.
             </Typography>
-            <FormGroup row>
-              {ALL_PLATFORMS.map(({ value, label, icon }) => (
-                <FormControlLabel
-                  key={value}
-                  control={
-                    <Checkbox
-                      checked={formData.platforms.includes(value)}
-                      onChange={() => togglePlatform(value)}
-                      size="small"
-                    />
-                  }
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      {icon}
-                      <Typography variant="body2">{label}</Typography>
-                    </Box>
-                  }
-                />
+
+            {/* Default */}
+            <TextField
+              label="Default (all platforms)"
+              value={formData.defaultValue}
+              onChange={e => setFormData(p => ({ ...p, defaultValue: e.target.value }))}
+              size="small" fullWidth
+              multiline={formData.type === 'json'} minRows={formData.type === 'json' ? 3 : 1}
+              placeholder={TYPE_PLACEHOLDERS[formData.type]}
+              helperText={formData.type === 'json' ? 'Must be valid JSON' : 'Served when no platform override matches'}
+              inputProps={{ style: { fontFamily: 'monospace' } }}
+              sx={{ mb: 2 }}
+            />
+
+            {/* Per-platform overrides */}
+            <Stack spacing={1.5}>
+              {PLATFORMS.map(({ key, label, Icon }) => (
+                <Box key={key} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                  <Box sx={{
+                    display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 90, mt: 1,
+                    color: formData.platformValues[key] ? 'primary.main' : 'text.disabled',
+                  }}>
+                    <Icon sx={{ fontSize: 18 }} />
+                    <Typography variant="body2" fontWeight={500}>{label}</Typography>
+                  </Box>
+                  <TextField
+                    value={formData.platformValues[key]}
+                    onChange={e => setPlatformValue(key, e.target.value)}
+                    size="small" fullWidth
+                    placeholder={`Override for ${label} (optional)`}
+                    multiline={formData.type === 'json'} minRows={formData.type === 'json' ? 2 : 1}
+                    inputProps={{ style: { fontFamily: 'monospace', fontSize: '0.85rem' } }}
+                    sx={{ '& .MuiOutlinedInput-root': formData.platformValues[key] ? { borderColor: 'primary.main' } : {} }}
+                  />
+                </Box>
               ))}
-            </FormGroup>
+            </Stack>
           </Box>
 
-          {/* Rollout percentage */}
+          <Divider />
+
+          {/* Rollout */}
           <Box>
-            <FormLabel component="legend" sx={{ fontSize: '0.875rem', fontWeight: 600, mb: 0.5 }}>
-              Rollout percentage — {formData.rolloutPercentage}%
+            <FormLabel sx={{ fontSize: '0.875rem', fontWeight: 600, mb: 0.5, display: 'block' }}>
+              Rollout — {formData.rolloutPercentage}%
             </FormLabel>
             <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
-              Each user gets a consistent value based on their user ID (sticky bucketing).
-              100% serves all users.
+              Gradual rollout using sticky bucketing — each user always gets the same value.
+              100% = all users. Applies to all platforms equally.
             </Typography>
             <Slider
               value={formData.rolloutPercentage}
               onChange={(_, v) => setFormData(p => ({ ...p, rolloutPercentage: v as number }))}
               min={0} max={100} step={5}
-              marks={[
-                { value: 0, label: '0%' },
-                { value: 25, label: '25%' },
-                { value: 50, label: '50%' },
-                { value: 75, label: '75%' },
-                { value: 100, label: '100%' },
-              ]}
+              marks={[{ value: 0, label: '0%' }, { value: 50, label: '50%' }, { value: 100, label: '100%' }]}
               valueLabelDisplay="auto"
               color={formData.rolloutPercentage < 50 ? 'warning' : 'primary'}
             />
@@ -691,10 +704,11 @@ export default function RemoteConfigPage() {
 
           <Divider />
 
-          {/* Enabled toggle */}
+          {/* Enabled */}
           <FormControlLabel
             control={
-              <Switch checked={formData.enabled} onChange={e => setFormData(p => ({ ...p, enabled: e.target.checked }))} color="success" />
+              <Switch checked={formData.enabled}
+                onChange={e => setFormData(p => ({ ...p, enabled: e.target.checked }))} color="success" />
             }
             label={
               <Box>
@@ -718,13 +732,13 @@ export default function RemoteConfigPage() {
         </DialogActions>
       </Dialog>
 
-      {/* ── Delete Confirm ────────────────────────────────────────────────── */}
+      {/* ── Delete confirm ──────────────────────────────────────────────────── */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Delete config?</DialogTitle>
         <DialogContent>
           <Typography variant="body2">
             <strong>{deleteTarget?.key}</strong> will be permanently deleted from{' '}
-            <strong>{currentEnvironment}</strong>. SDK clients will stop receiving this value.
+            <strong>{currentEnvironment}</strong>. All platform overrides will be lost.
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>

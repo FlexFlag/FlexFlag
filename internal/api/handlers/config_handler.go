@@ -24,11 +24,12 @@ func NewConfigHandler(repo storage.FlagRepository) *ConfigHandler {
 
 // ConfigMeta holds lightweight metadata about each config entry.
 type ConfigMeta struct {
-	Type              types.FlagType `json:"type"`
-	Enabled           bool           `json:"enabled"`
-	UpdatedAt         time.Time      `json:"updated_at"`
-	Platforms         []string       `json:"platforms,omitempty"`          // nil = all platforms
-	RolloutPercentage *int           `json:"rollout_percentage,omitempty"` // nil = 100%
+	Type              types.FlagType         `json:"type"`
+	Enabled           bool                   `json:"enabled"`
+	UpdatedAt         time.Time              `json:"updated_at"`
+	Platforms         []string               `json:"platforms,omitempty"`          // nil = all platforms
+	RolloutPercentage *int                   `json:"rollout_percentage,omitempty"` // nil = 100%
+	PlatformValues    map[string]interface{} `json:"platform_values,omitempty"`    // per-platform overrides
 }
 
 // ConfigResponse is the response shape for GET /config and POST /config/evaluate.
@@ -98,6 +99,7 @@ func (h *ConfigHandler) GetConfig(c *gin.Context) {
 			UpdatedAt:         flag.UpdatedAt,
 			Platforms:         platforms,
 			RolloutPercentage: rolloutPct,
+			PlatformValues:    extractPlatformValues(flag.Metadata),
 		}
 		metadata[flag.Key] = meta
 
@@ -222,6 +224,19 @@ func (h *ConfigHandler) listFlags(c *gin.Context, projectID, environment string)
 	return h.repo.List(c.Request.Context(), environment)
 }
 
+// extractPlatformValues reads per-platform value overrides from metadata.
+func extractPlatformValues(meta map[string]interface{}) map[string]interface{} {
+	if meta == nil {
+		return nil
+	}
+	if raw, ok := meta["platform_values"]; ok {
+		if pvMap, ok := raw.(map[string]interface{}); ok && len(pvMap) > 0 {
+			return pvMap
+		}
+	}
+	return nil
+}
+
 // extractConfigSettings reads platform list and rollout percentage from flag metadata.
 // These are stored as: metadata["platforms"] = ["ios","android"] and metadata["rollout_percentage"] = 75
 func extractConfigSettings(meta map[string]interface{}) (platforms []string, rolloutPct *int) {
@@ -284,14 +299,29 @@ func configHashToPercentage(flagKey, userID string) int {
 	return int(hashInt % 100)
 }
 
-// resolveConfigValue applies targeting rules and returns the appropriate value.
-// Falls back to the flag default if no rule matches.
+// resolveConfigValue returns the value for a flag given the request context.
+// Resolution order:
+//  1. Per-platform value from metadata.platform_values (e.g. {"ios": "dark", "android": "light"})
+//  2. Targeting rules (attribute-based)
+//  3. Flag default value
 func (h *ConfigHandler) resolveConfigValue(flag *types.Flag, req ConfigEvaluateRequest) interface{} {
 	var defaultValue interface{}
 	if err := json.Unmarshal(flag.Default, &defaultValue); err != nil {
 		return nil
 	}
 
+	// 1. Per-platform value — check metadata.platform_values first
+	if req.Platform != "" && flag.Metadata != nil {
+		if rawPV, ok := flag.Metadata["platform_values"]; ok {
+			if pvMap, ok := rawPV.(map[string]interface{}); ok {
+				if platformVal, ok := pvMap[req.Platform]; ok {
+					return platformVal
+				}
+			}
+		}
+	}
+
+	// 2. Targeting rules
 	if flag.Targeting == nil || len(flag.Targeting.Rules) == 0 {
 		return defaultValue
 	}
@@ -327,6 +357,7 @@ func (h *ConfigHandler) resolveConfigValue(flag *types.Flag, req ConfigEvaluateR
 		}
 	}
 
+	// 3. Default
 	return defaultValue
 }
 
