@@ -1,6 +1,6 @@
 {
-  "name": "@flexflag/react-native",
-  "version": "1.0.0",
+  "name": "flexflag-react-native",
+  "version": "1.0.1",
   "description": "FlexFlag React Native SDK — offline-first feature flags and remote config for mobile apps",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
