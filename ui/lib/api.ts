@@ -68,12 +68,12 @@ class ApiClient {
     });
   }
 
-  async toggleFlag(key: string, environment = 'production', projectId?: string): Promise<Flag> {
+  async toggleFlag(key: string, environment = 'production', projectId?: string): Promise<Flag | { approval_required: true; approval_id: string; message: string }> {
     const params = new URLSearchParams({ environment });
     if (projectId) {
       params.append('project_id', projectId);
     }
-    return this.request<Flag>(`/flags/${key}/toggle?${params.toString()}`, {
+    return this.request(`/flags/${key}/toggle?${params.toString()}`, {
       method: 'POST',
     });
   }
@@ -298,6 +298,42 @@ class ApiClient {
     return this.request(`/config/evaluate?${params.toString()}`, {
       method: 'POST',
       body: JSON.stringify(context),
+    });
+  }
+
+  // Approval Workflow
+  async getApprovals(projectId: string, status?: string): Promise<{ approvals: any[] }> {
+    const params = new URLSearchParams({ project_id: projectId });
+    if (status) params.append('status', status);
+    return this.request(`/approvals?${params}`);
+  }
+
+  async getPendingApprovalCount(projectId: string): Promise<{ count: number }> {
+    return this.request(`/approvals/count?project_id=${projectId}`);
+  }
+
+  async approveRequest(id: string, note?: string): Promise<{ message: string }> {
+    return this.request(`/approvals/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ note: note || '' }),
+    });
+  }
+
+  async rejectRequest(id: string, note?: string): Promise<{ message: string }> {
+    return this.request(`/approvals/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ note: note || '' }),
+    });
+  }
+
+  async getApprovalSettings(projectId: string): Promise<{ require_approval: boolean; slack_webhook_url: string }> {
+    return this.request(`/approvals/settings?project_id=${projectId}`);
+  }
+
+  async updateApprovalSettings(projectId: string, settings: { require_approval: boolean; slack_webhook_url: string }): Promise<void> {
+    return this.request(`/approvals/settings?project_id=${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(settings),
     });
   }
 

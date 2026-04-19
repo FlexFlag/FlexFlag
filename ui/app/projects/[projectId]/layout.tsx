@@ -48,7 +48,9 @@ import {
   LightMode as LightModeIcon,
   Tune as RemoteConfigIcon,
   BarChart as AnalyticsIcon,
+  HowToVote as ApprovalIcon,
 } from '@mui/icons-material';
+import { Badge } from '@mui/material';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useTheme } from '@mui/material/styles';
 import { useProject } from '@/contexts/ProjectContext';
@@ -73,6 +75,7 @@ const projectNavigationItems = [
     ]
   },
   { label: 'Analytics', icon: <AnalyticsIcon />, href: '/analytics' },
+  { label: 'Approvals', icon: <ApprovalIcon />, href: '/approvals', badgeKey: 'approvals' },
   { label: 'Evaluations', icon: <AssessmentIcon />, href: '/evaluations' },
   { label: 'Performance', icon: <SpeedIcon />, href: '/performance' },
   { label: 'Environments', icon: <EnvironmentIcon />, href: '/environments' },
@@ -156,6 +159,31 @@ function EnvironmentSelector() {
 function NavigationContent({ project, collapsed, onToggleCollapse }: { project: any; collapsed: boolean; onToggleCollapse: () => void }) {
   const pathname = usePathname();
   const [expandedItems, setExpandedItems] = useState<string[]>(['Feature Management']);
+  const [pendingApprovals, setPendingApprovals] = useState(0);
+
+  useEffect(() => {
+    if (!project?.id) return;
+    apiClient.getPendingApprovalCount(project.id)
+      .then(r => setPendingApprovals(r.count))
+      .catch(() => {});
+    const interval = setInterval(() => {
+      apiClient.getPendingApprovalCount(project.id)
+        .then(r => setPendingApprovals(r.count))
+        .catch(() => {});
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [project?.id]);
+
+  const navIcon = (item: any) => {
+    if (item.badgeKey === 'approvals' && pendingApprovals > 0) {
+      return (
+        <Badge badgeContent={pendingApprovals} color="error" max={99}>
+          {item.icon}
+        </Badge>
+      );
+    }
+    return item.icon;
+  };
 
   const handleExpandClick = (label: string) => {
     setExpandedItems(prev =>
@@ -398,7 +426,7 @@ function NavigationContent({ project, collapsed, onToggleCollapse }: { project: 
                         fontSize: '1.25rem'
                       }
                     }}>
-                      {item.icon}
+                      {navIcon(item)}
                     </ListItemIcon>
                   </ListItem>
                 </Tooltip>
@@ -426,7 +454,7 @@ function NavigationContent({ project, collapsed, onToggleCollapse }: { project: 
                     color: 'inherit',
                     minWidth: 40
                   }}>
-                    {item.icon}
+                    {navIcon(item)}
                   </ListItemIcon>
                   <ListItemText
                     primary={item.label}

@@ -25,6 +25,7 @@ import {
   Alert,
   Tooltip,
   Paper,
+  Snackbar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -486,6 +487,11 @@ export default function ProjectFlagsPage() {
     message: '',
     action: () => {},
   });
+  const [toast, setToast] = useState<{ open: boolean; message: string; severity: 'success' | 'info' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
 
   // Fetch project data
   useEffect(() => {
@@ -558,9 +564,13 @@ export default function ProjectFlagsPage() {
       message: `Are you sure you want to ${action} "${flag.name}"? This will affect all users in the ${currentEnvironment} environment.`,
       action: async () => {
         try {
-          await apiClient.toggleFlag(flag.key, currentEnvironment, projectId);
-          fetchFlags();
+          const result = await apiClient.toggleFlag(flag.key, currentEnvironment, projectId);
           setConfirmDialog({ ...confirmDialog, open: false });
+          if ('approval_required' in result && result.approval_required) {
+            setToast({ open: true, message: 'Change submitted for approval. A reviewer must approve before it takes effect.', severity: 'info' });
+          } else {
+            fetchFlags();
+          }
         } catch (err) {
           setError(`Failed to ${action} flag`);
           console.error(`${action} flag error:`, err);
@@ -920,6 +930,21 @@ export default function ProjectFlagsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={6000}
+        onClose={() => setToast(t => ({ ...t, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setToast(t => ({ ...t, open: false }))}
+          severity={toast.severity}
+          sx={{ width: '100%' }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
