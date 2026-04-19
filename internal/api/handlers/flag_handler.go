@@ -19,9 +19,11 @@ type FlagHandler struct {
 	auditService     *services.AuditService
 	ultraFastHandler *UltraFastHandler
 	projectRepo      *postgres.ProjectRepository
+	approvalRepo     *postgres.ApprovalRepository
 	edgeSyncHandler  *EdgeSyncHandler
 	sseHandler       *SSEHandler
 	clientSSEHandler *ClientSSEHandler
+	uiBaseURL        string
 }
 
 func NewFlagHandler(repo storage.FlagRepository, auditService *services.AuditService, ultraFastHandler *UltraFastHandler, projectRepo *postgres.ProjectRepository) *FlagHandler {
@@ -30,7 +32,25 @@ func NewFlagHandler(repo storage.FlagRepository, auditService *services.AuditSer
 		auditService:     auditService,
 		ultraFastHandler: ultraFastHandler,
 		projectRepo:      projectRepo,
+		uiBaseURL:        "http://localhost:3000",
 	}
+}
+
+func (h *FlagHandler) SetApprovalRepo(approvalRepo *postgres.ApprovalRepository) {
+	h.approvalRepo = approvalRepo
+}
+
+// requiresApproval returns true when the project has approval workflow enabled.
+func (h *FlagHandler) requiresApproval(c *gin.Context, projectID string) bool {
+	if h.approvalRepo == nil || projectID == "" {
+		return false
+	}
+	project, err := h.projectRepo.GetByID(c.Request.Context(), projectID)
+	if err != nil {
+		return false
+	}
+	required, _ := project.Settings["require_approval"].(bool)
+	return required
 }
 
 // SetEdgeSyncHandler sets the edge sync handler for broadcasting updates
@@ -286,6 +306,7 @@ func (h *FlagHandler) ListFlags(c *gin.Context) {
 func (h *FlagHandler) UpdateFlag(c *gin.Context) {
 	key := c.Param("key")
 	environment := c.DefaultQuery("environment", "production")
+	projectID := c.Query("project_id")
 
 	existingFlag, err := h.repo.GetByKey(c.Request.Context(), key, environment)
 	if err != nil {
@@ -296,6 +317,31 @@ func (h *FlagHandler) UpdateFlag(c *gin.Context) {
 	var req CreateFlagRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Approval workflow — submit update for review instead of applying.
+	if h.requiresApproval(c, projectID) {
+		// Serialise the incoming update as the payload
+		var rawUpdate map[string]interface{}
+		b, _ := json.Marshal(req)
+		_ = json.Unmarshal(b, &rawUpdate)
+
+		approval, err := CreateApprovalRequest(c, h.approvalRepo, h.projectRepo,
+			projectID, key, environment,
+			types.ChangeTypeUpdate,
+			map[string]interface{}{"flag_update": rawUpdate},
+			h.uiBaseURL,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create approval request: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusAccepted, gin.H{
+			"approval_required": true,
+			"approval_id":       approval.ID,
+			"message":           "Change submitted for approval",
+		})
 		return
 	}
 
@@ -422,6 +468,30 @@ func (h *FlagHandler) ToggleFlag(c *gin.Context) {
 	flag, err := h.repo.GetByProjectKey(c.Request.Context(), projectID, key, environment)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "flag not found"})
+		return
+	}
+
+	// Approval workflow — create a request instead of applying immediately.
+	if h.requiresApproval(c, projectID) {
+		newEnabled := !flag.Enabled
+		approval, err := CreateApprovalRequest(c, h.approvalRepo, h.projectRepo,
+			projectID, key, environment,
+			types.ChangeTypeToggle,
+			map[string]interface{}{
+				"current_enabled": flag.Enabled,
+				"new_enabled":     newEnabled,
+			},
+			h.uiBaseURL,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create approval request: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusAccepted, gin.H{
+			"approval_required": true,
+			"approval_id":       approval.ID,
+			"message":           "Change submitted for approval",
+		})
 		return
 	}
 

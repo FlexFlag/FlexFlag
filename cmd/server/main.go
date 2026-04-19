@@ -86,6 +86,7 @@ func main() {
 	rolloutRepo := postgres.NewRolloutRepository(db)
 	auditRepo := postgres.NewAuditRepository(db)
 	apiKeyRepo := postgres.NewApiKeyRepository(db)
+	approvalRepo := postgres.NewApprovalRepository(db)
 	
 	// Initialize services
 	auditService := services.NewAuditService(auditRepo)
@@ -105,6 +106,7 @@ func main() {
 	flagHandler.SetEdgeSyncHandler(edgeSyncHandler)
 	flagHandler.SetSSEHandler(sseHandler)
 	flagHandler.SetClientSSEHandler(clientSSEHandler)
+	flagHandler.SetApprovalRepo(approvalRepo)
 	authHandler := handlers.NewAuthHandler(userRepo, jwtManager)
 	userHandler := handlers.NewUserHandler(userRepo)
 	oauthHandler := handlers.NewOAuthHandler(
@@ -123,6 +125,7 @@ func main() {
 	apiKeyHandler := handlers.NewApiKeyHandler(apiKeyRepo)
 	configHandler := handlers.NewConfigHandler(flagRepo)
 	analyticsHandler := handlers.NewAnalyticsHandler(analyticsCounter)
+	approvalHandler := handlers.NewApprovalHandler(approvalRepo, flagRepo, projectRepo, "http://localhost:3000")
 
 	r := gin.New()
 	r.Use(gin.Logger())
@@ -314,6 +317,18 @@ func main() {
 
 		// Analytics — in-memory evaluation counters (resets on restart)
 		api.GET("/analytics/flags", auth.AuthMiddleware(jwtManager), analyticsHandler.GetFlagAnalytics)
+
+		// Approval workflow
+		approvals := api.Group("/approvals")
+		approvals.Use(auth.AuthMiddleware(jwtManager))
+		{
+			approvals.GET("", approvalHandler.ListApprovals)
+			approvals.GET("/count", approvalHandler.GetPendingCount)
+			approvals.GET("/settings", approvalHandler.GetProjectApprovalSettings)
+			approvals.PUT("/settings", auth.RequireEditorOrAdmin(), approvalHandler.UpdateProjectApprovalSettings)
+			approvals.POST("/:id/approve", auth.RequireEditorOrAdmin(), approvalHandler.ApproveRequest)
+			approvals.POST("/:id/reject", auth.RequireEditorOrAdmin(), approvalHandler.RejectRequest)
+		}
 
 		// Client SDK SSE stream (uses API key authentication via query parameter)
 		api.GET("/stream", clientSSEHandler.HandleClientSSE)
