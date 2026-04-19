@@ -59,6 +59,14 @@ type AuditRepository interface {
 	ListByUser(ctx context.Context, userID string, limit, offset int) ([]*types.AuditLog, error)
 }
 
+type ApprovalRepository interface {
+	Create(ctx context.Context, req *types.ApprovalRequest) error
+	GetByID(ctx context.Context, id string) (*types.ApprovalRequest, error)
+	ListByProject(ctx context.Context, projectID string, status types.ApprovalStatus) ([]*types.ApprovalRequest, error)
+	UpdateStatus(ctx context.Context, id string, status types.ApprovalStatus, reviewedBy, note string) error
+	PendingCount(ctx context.Context, projectID string) (int, error)
+}
+
 type Cache interface {
 	Get(ctx context.Context, key string) ([]byte, error)
 	Set(ctx context.Context, key string, value []byte, ttl int) error
