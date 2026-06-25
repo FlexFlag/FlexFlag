@@ -2,7 +2,4 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "installCommand": "npm install",
-  "env": {
-    "INTERNAL_API_URL": "@flexflag-api-url"
-  }
 }
