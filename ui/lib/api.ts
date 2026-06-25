@@ -1,6 +1,6 @@
 import { Flag, CreateFlagRequest, EvaluationRequest, EvaluationResponse, PerformanceStats, UltraFastStats } from '@/types';
 
-const API_BASE = 'http://localhost:8080/api/v1';
+const API_BASE = '/api/v1';
 
 class ApiClient {
   private getAuthToken(): string | null {
