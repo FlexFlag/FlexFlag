@@ -15,7 +15,7 @@ import {
   Cancel as RejectIcon,
   HowToVote as ApprovalIcon,
   Settings as SettingsIcon,
-  Slack as SlackIcon,
+  Notifications as SlackIcon,
   ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 
