@@ -114,7 +114,7 @@ export default function ProjectSegmentsPage() {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/v1/segments?project_id=${projectId}`, {
+      const response = await fetch(`/api/v1/segments?project_id=${projectId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -143,7 +143,7 @@ export default function ProjectSegmentsPage() {
         environment: currentEnvironment,
       };
       
-      const response = await fetch('http://localhost:8080/api/v1/segments', {
+      const response = await fetch('/api/v1/segments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,7 +178,7 @@ export default function ProjectSegmentsPage() {
       // Extract user_id and build attributes object from the rest
       const { user_id, ...attributes } = testData;
 
-      const response = await fetch('http://localhost:8080/api/v1/segments/evaluate', {
+      const response = await fetch('/api/v1/segments/evaluate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -213,7 +213,7 @@ export default function ProjectSegmentsPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/v1/segments/${key}?project_id=${projectId}`, {
+      const response = await fetch(`/api/v1/segments/${key}?project_id=${projectId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -287,7 +287,7 @@ export default function ProjectSegmentsPage() {
         rules: formData.rules,
       };
 
-      const response = await fetch(`http://localhost:8080/api/v1/segments/${selectedSegment.key}?project_id=${projectId}`, {
+      const response = await fetch(`/api/v1/segments/${selectedSegment.key}?project_id=${projectId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

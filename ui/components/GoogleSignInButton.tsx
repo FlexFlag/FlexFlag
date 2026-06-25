@@ -11,7 +11,7 @@ interface GoogleSignInButtonProps {
 export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInButtonProps) {
   const handleGoogleSignIn = () => {
     // Redirect to backend OAuth endpoint
-    window.location.href = 'http://localhost:8080/api/v1/auth/google/login';
+    window.location.href = '/api/v1/auth/google/login';
   };
 
   return (

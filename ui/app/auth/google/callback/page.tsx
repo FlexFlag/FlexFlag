@@ -46,7 +46,7 @@ function GoogleCallbackContent() {
 
         console.log('Fetching user profile...');
         // Fetch user profile with the token
-        const response = await fetch('http://localhost:8080/api/v1/auth/profile', {
+        const response = await fetch('/api/v1/auth/profile', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },

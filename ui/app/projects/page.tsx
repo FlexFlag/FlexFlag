@@ -158,7 +158,7 @@ export default function ProjectsPage() {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/v1/projects/${editingProject.slug}`, {
+      const response = await fetch(`/api/v1/projects/${editingProject.slug}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -238,7 +238,7 @@ export default function ProjectsPage() {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/v1/projects/${slug}`, {
+      const response = await fetch(`/api/v1/projects/${slug}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

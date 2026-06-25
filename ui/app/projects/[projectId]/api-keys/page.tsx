@@ -447,7 +447,7 @@ export default function ProjectApiKeysPage() {
               <AccordionDetails>
                 <Box component="pre" sx={{ bgcolor: 'grey.100', p: 2, borderRadius: 1, fontSize: '0.875rem', overflow: 'auto' }}>
 {`// Evaluate a flag
-const response = await fetch('http://localhost:8080/api/v1/evaluate', {
+const response = await fetch('/api/v1/evaluate', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -475,7 +475,7 @@ console.log('Flag value:', result.value);`}
               </AccordionSummary>
               <AccordionDetails>
                 <Box component="pre" sx={{ bgcolor: 'grey.100', p: 2, borderRadius: 1, fontSize: '0.875rem', overflow: 'auto' }}>
-{`curl -X POST http://localhost:8080/api/v1/evaluate \\
+{`curl -X POST /api/v1/evaluate \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: your_api_key_here" \\
   -d '{
@@ -500,7 +500,7 @@ console.log('Flag value:', result.value);`}
 
 def evaluate_flag(api_key, flag_key, user_id, attributes=None):
     response = requests.post(
-        'http://localhost:8080/api/v1/evaluate',
+        '/api/v1/evaluate',
         headers={
             'Content-Type': 'application/json',
             'X-API-Key': api_key

@@ -118,7 +118,7 @@ export default function RolloutsPage() {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/v1/rollouts?project_id=${currentProject.id}&environment=${currentEnvironment}`, {
+      const response = await fetch(`/api/v1/rollouts?project_id=${currentProject.id}&environment=${currentEnvironment}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -137,7 +137,7 @@ export default function RolloutsPage() {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/v1/flags?environment=${currentEnvironment}&project_id=${currentProject.id}`, {
+      const response = await fetch(`/api/v1/flags?environment=${currentEnvironment}&project_id=${currentProject.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -166,7 +166,7 @@ export default function RolloutsPage() {
         config.variations = formData.variations;
       }
 
-      const response = await fetch('http://localhost:8080/api/v1/rollouts', {
+      const response = await fetch('/api/v1/rollouts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -195,7 +195,7 @@ export default function RolloutsPage() {
   const handleStatusChange = async (rolloutId: string, action: 'activate' | 'pause' | 'complete') => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/v1/rollouts/${rolloutId}/${action}`, {
+      const response = await fetch(`/api/v1/rollouts/${rolloutId}/${action}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -213,7 +213,7 @@ export default function RolloutsPage() {
   const handleDeleteRollout = async (rolloutId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/v1/rollouts/${rolloutId}`, {
+      const response = await fetch(`/api/v1/rollouts/${rolloutId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -290,7 +290,7 @@ export default function RolloutsPage() {
         config.variations = formData.variations;
       }
 
-      const response = await fetch(`http://localhost:8080/api/v1/rollouts/${editingRollout.id}`, {
+      const response = await fetch(`/api/v1/rollouts/${editingRollout.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

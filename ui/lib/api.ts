@@ -352,7 +352,7 @@ class ApiClient {
 
   // Health Check
   async healthCheck(): Promise<{ status: string; service: string }> {
-    const response = await fetch('http://localhost:8080/health');
+    const response = await fetch('/health');
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.status}`);
     }

@@ -135,7 +135,7 @@ export default function ProjectExperimentsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/v1/flags?project_id=${projectId}&environment=${currentEnvironment}`, {
+      const response = await fetch(`/api/v1/flags?project_id=${projectId}&environment=${currentEnvironment}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -187,7 +187,7 @@ export default function ProjectExperimentsPage() {
         }
       };
 
-      const response = await fetch('http://localhost:8080/api/v1/flags', {
+      const response = await fetch('/api/v1/flags', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -225,7 +225,7 @@ export default function ProjectExperimentsPage() {
         attributes = {};
       }
       
-      const response = await fetch('http://localhost:8080/api/v1/evaluate', {
+      const response = await fetch('/api/v1/evaluate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -259,7 +259,7 @@ export default function ProjectExperimentsPage() {
   const handleToggleExperiment = async (experiment: VariantFlag) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/v1/flags/${experiment.key}/toggle?project_id=${projectId}&environment=${currentEnvironment}`, {
+      const response = await fetch(`/api/v1/flags/${experiment.key}/toggle?project_id=${projectId}&environment=${currentEnvironment}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -337,7 +337,7 @@ export default function ProjectExperimentsPage() {
         }
       };
 
-      const response = await fetch(`http://localhost:8080/api/v1/flags/${selectedExperiment.key}?project_id=${projectId}&environment=${currentEnvironment}`, {
+      const response = await fetch(`/api/v1/flags/${selectedExperiment.key}?project_id=${projectId}&environment=${currentEnvironment}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -97,7 +97,7 @@ export default function SegmentsPage() {
   const fetchSegments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8080/api/v1/segments', {
+      const response = await fetch('/api/v1/segments', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -114,7 +114,7 @@ export default function SegmentsPage() {
   const handleCreateSegment = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8080/api/v1/segments', {
+      const response = await fetch('/api/v1/segments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -138,7 +138,7 @@ export default function SegmentsPage() {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8080/api/v1/segments/evaluate', {
+      const response = await fetch('/api/v1/segments/evaluate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -162,7 +162,7 @@ export default function SegmentsPage() {
   const handleDeleteSegment = async (key: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/v1/segments/${key}`, {
+      const response = await fetch(`/api/v1/segments/${key}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
