@@ -188,7 +188,7 @@ export default function RemoteConfigPage() {
     setError(null);
     try {
       const all = await apiClient.getFlags(currentEnvironment, projectId);
-      setFlags(all.filter(f => f.type !== 'boolean' && f.type !== 'variant'));
+      setFlags(all.filter(f => f.type !== 'boolean' && f.type !== ('variant' as string)));
     } catch {
       setError('Failed to load remote config. Make sure the server is running.');
     } finally {
