@@ -1,3 +1,8 @@
+---
+title: Edge Architecture
+nav_order: 5
+---
+
 # FlexFlag Edge Server Architecture
 
 ## Overview

@@ -1,34 +1,41 @@
-# FlexFlag Documentation Site Configuration
-title: FlexFlag Documentation
-description: High-Performance Feature Flag Management System
+title: FlexFlag
+description: High-performance, developer-first feature flag management with sub-millisecond evaluation and distributed edge servers.
 url: https://flexflag.github.io
 baseurl: /FlexFlag
 
-# Theme
-theme: minima
+remote_theme: just-the-docs/just-the-docs@v0.10.0
+
 markdown: kramdown
 highlighter: rouge
 
-# Navigation
-header_pages:
-  - sdks/javascript/README.md
-  - sdks/javascript/getting-started.md
-  - sdks/javascript/react-integration.md
-  - sdks/javascript/vue-integration.md
-  - sdks/javascript/api-reference.md
-
-# Plugins
 plugins:
   - jekyll-feed
   - jekyll-sitemap
+  - jekyll-remote-theme
 
-# Build settings
 exclude:
   - node_modules/
   - vendor/
 
-# GitHub metadata
-repository: FlexFlag/FlexFlag
+# just-the-docs configuration
+color_scheme: dark
 
-# Social
+aux_links:
+  "Live Demo":
+    - "https://flex-flag-zyen-idpjh03va-reez-personals-projects.vercel.app/"
+  "GitHub":
+    - "https://github.com/FlexFlag/FlexFlag"
+
+aux_links_new_tab: true
+
+search_enabled: true
+search:
+  heading_level: 2
+  previews: 3
+
+nav_sort: order
+
+footer_content: "Built with ❤️ by the FlexFlag team &nbsp;·&nbsp; <a href=\"https://discord.gg/fpewTJyx9S\">Discord</a>"
+
+repository: FlexFlag/FlexFlag
 github_username: flexflag
