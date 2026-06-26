@@ -207,7 +207,7 @@ function NavigationContent() {
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { mode, toggleMode } = useCustomTheme();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -223,8 +223,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     setMobileOpen(!mobileOpen);
   };
 
-  // Public routes and project routes render without the shell
-  if (isPublicRoute || isProjectRoute) {
+  // Public routes, unauthenticated users, and project routes render without the shell
+  if (isPublicRoute || isProjectRoute || !isAuthenticated) {
     return <>{children}</>;
   }
 
