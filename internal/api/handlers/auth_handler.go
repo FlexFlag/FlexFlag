@@ -10,14 +10,16 @@ import (
 )
 
 type AuthHandler struct {
-	userRepo   *postgres.UserRepository
-	jwtManager *auth.JWTManager
+	userRepo    *postgres.UserRepository
+	projectRepo *postgres.ProjectRepository
+	jwtManager  *auth.JWTManager
 }
 
-func NewAuthHandler(userRepo *postgres.UserRepository, jwtManager *auth.JWTManager) *AuthHandler {
+func NewAuthHandler(userRepo *postgres.UserRepository, projectRepo *postgres.ProjectRepository, jwtManager *auth.JWTManager) *AuthHandler {
 	return &AuthHandler{
-		userRepo:   userRepo,
-		jwtManager: jwtManager,
+		userRepo:    userRepo,
+		projectRepo: projectRepo,
+		jwtManager:  jwtManager,
 	}
 }
 
@@ -60,7 +62,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	// Set default role if not specified
 	if req.Role == "" {
-		req.Role = types.UserRoleViewer
+		req.Role = types.UserRoleAdmin
 	}
 
 	// Create user
@@ -76,6 +78,16 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
+
+	// Auto-create a personal project for the new user
+	project := &types.Project{
+		Slug:      "my-project-" + user.ID[:8],
+		Name:      user.FullName + "'s Project",
+		CreatedBy: user.ID,
+		IsActive:  true,
+		Settings:  make(map[string]interface{}),
+	}
+	h.projectRepo.Create(c.Request.Context(), project)
 
 	// Generate JWT token
 	token, err := h.jwtManager.GenerateToken(user.ID, user.Email, string(user.Role))

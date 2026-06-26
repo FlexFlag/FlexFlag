@@ -107,7 +107,7 @@ func main() {
 	flagHandler.SetSSEHandler(sseHandler)
 	flagHandler.SetClientSSEHandler(clientSSEHandler)
 	flagHandler.SetApprovalRepo(approvalRepo)
-	authHandler := handlers.NewAuthHandler(userRepo, jwtManager)
+	authHandler := handlers.NewAuthHandler(userRepo, projectRepo, jwtManager)
 	userHandler := handlers.NewUserHandler(userRepo)
 	oauthHandler := handlers.NewOAuthHandler(
 		userRepo,
