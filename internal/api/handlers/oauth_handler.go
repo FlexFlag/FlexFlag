@@ -188,10 +188,14 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 	if err != nil {
 		// User doesn't exist, create new user
 		fmt.Println("User not found, creating new user...")
+		defaultRole := types.UserRoleViewer
+		if os.Getenv("FLEXFLAG_DEMO_MODE") == "true" {
+			defaultRole = types.UserRoleAdmin
+		}
 		user = &types.User{
 			Email:        userInfo.Email,
 			FullName:     userInfo.Name,
-			Role:         types.UserRoleEditor,
+			Role:         defaultRole,
 			IsActive:     true,
 			PasswordHash: "",
 		}

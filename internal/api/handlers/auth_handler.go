@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/flexflag/flexflag/internal/auth"
 	"github.com/flexflag/flexflag/internal/storage/postgres"
@@ -62,7 +63,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	// Set default role if not specified
 	if req.Role == "" {
-		req.Role = types.UserRoleAdmin
+		if os.Getenv("FLEXFLAG_DEMO_MODE") == "true" {
+			req.Role = types.UserRoleAdmin
+		} else {
+			req.Role = types.UserRoleViewer
+		}
 	}
 
 	// Create user
