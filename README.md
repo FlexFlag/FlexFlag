@@ -3,11 +3,11 @@
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat&logo=next.js)](https://nextjs.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?style=flat&logo=vercel)](https://flex-flag-zyen-idpjh03va-reez-personals-projects.vercel.app/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?style=flat&logo=vercel)](https://flex-flag-zyen-54gd39dvv-reez-personals-projects.vercel.app/)
 
 ## 🌐 Live Demo
 
-**[https://flex-flag-zyen-idpjh03va-reez-personals-projects.vercel.app/](https://flex-flag-zyen-idpjh03va-reez-personals-projects.vercel.app/)**
+**[https://flex-flag-zyen-54gd39dvv-reez-personals-projects.vercel.app/](https://flex-flag-zyen-54gd39dvv-reez-personals-projects.vercel.app/)**
 
 > Try it out with the demo credentials below — no setup required.
 
