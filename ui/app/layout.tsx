@@ -207,7 +207,7 @@ function NavigationContent() {
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { mode, toggleMode } = useCustomTheme();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -224,7 +224,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   };
 
   // Public routes, unauthenticated users, and project routes render without the shell
-  if (isPublicRoute || isProjectRoute || !isAuthenticated) {
+  if (isPublicRoute || isProjectRoute || isLoading || !isAuthenticated) {
     return <>{children}</>;
   }
 
@@ -318,9 +318,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
             <Divider />
             <MenuItem onClick={() => {
               setUserMenuAnchor(null);
-              localStorage.removeItem('token');
-              localStorage.removeItem('user');
-              router.push('/login');
+              logout();
             }}>
               <ListItemIcon>
                 <LogoutIcon fontSize="small" />
