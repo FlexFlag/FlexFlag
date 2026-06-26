@@ -213,6 +213,9 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
 
+  const publicRoutes = ['/login', '/register', '/auth/google/callback'];
+  const isPublicRoute = publicRoutes.includes(pathname);
+
   // Check if we're in a project-specific route
   const isProjectRoute = pathname?.startsWith('/projects/') && pathname.split('/').length > 2;
 
@@ -220,8 +223,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     setMobileOpen(!mobileOpen);
   };
 
-  // If we're in a project route, just render the children (project layout will handle everything)
-  if (isProjectRoute) {
+  // Public routes and project routes render without the shell
+  if (isPublicRoute || isProjectRoute) {
     return <>{children}</>;
   }
 

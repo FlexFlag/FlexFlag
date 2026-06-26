@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/flexflag/flexflag/internal/auth"
@@ -22,6 +23,7 @@ type OAuthHandler struct {
 	userRepo    *postgres.UserRepository
 	jwtManager  *auth.JWTManager
 	googleOAuth *oauth2.Config
+	frontendURL string
 	stateStore  map[string]time.Time // Simple state storage (use Redis in production)
 }
 
@@ -36,9 +38,14 @@ type GoogleUserInfo struct {
 }
 
 func NewOAuthHandler(userRepo *postgres.UserRepository, jwtManager *auth.JWTManager, clientID, clientSecret, redirectURL string) *OAuthHandler {
+	frontendURL := os.Getenv("FLEXFLAG_FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
 	return &OAuthHandler{
-		userRepo:   userRepo,
-		jwtManager: jwtManager,
+		userRepo:    userRepo,
+		jwtManager:  jwtManager,
+		frontendURL: frontendURL,
 		googleOAuth: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
@@ -229,7 +236,7 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 	jwtToken, err := h.jwtManager.GenerateToken(user.ID, user.Email, string(user.Role))
 	if err != nil {
 		fmt.Printf("Failed to generate JWT: %v\n", err)
-		errorURL := fmt.Sprintf("http://localhost:3000/login?error=%s", "token_generation_failed")
+		errorURL := fmt.Sprintf("%s/login?error=%s", h.frontendURL, "token_generation_failed")
 		c.Redirect(http.StatusTemporaryRedirect, errorURL)
 		return
 	}
@@ -241,9 +248,9 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 
 	// Redirect to frontend with token
 	// Frontend will extract token from URL and store it
-	frontendURL := fmt.Sprintf("http://localhost:3000/auth/google/callback?token=%s", jwtToken)
-	fmt.Printf("Redirecting to frontend: %s\n", frontendURL)
-	c.Redirect(http.StatusTemporaryRedirect, frontendURL)
+	callbackURL := fmt.Sprintf("%s/auth/google/callback?token=%s", h.frontendURL, jwtToken)
+	fmt.Printf("Redirecting to frontend: %s\n", callbackURL)
+	c.Redirect(http.StatusTemporaryRedirect, callbackURL)
 	fmt.Println("OAuth callback completed successfully")
 }
 
