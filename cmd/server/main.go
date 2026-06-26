@@ -111,6 +111,7 @@ func main() {
 	userHandler := handlers.NewUserHandler(userRepo)
 	oauthHandler := handlers.NewOAuthHandler(
 		userRepo,
+		projectRepo,
 		jwtManager,
 		cfg.Auth.OAuth.Google.ClientID,
 		cfg.Auth.OAuth.Google.ClientSecret,

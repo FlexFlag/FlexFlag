@@ -21,6 +21,7 @@ import (
 
 type OAuthHandler struct {
 	userRepo    *postgres.UserRepository
+	projectRepo *postgres.ProjectRepository
 	jwtManager  *auth.JWTManager
 	googleOAuth *oauth2.Config
 	frontendURL string
@@ -37,13 +38,14 @@ type GoogleUserInfo struct {
 	Picture       string `json:"picture"`
 }
 
-func NewOAuthHandler(userRepo *postgres.UserRepository, jwtManager *auth.JWTManager, clientID, clientSecret, redirectURL string) *OAuthHandler {
+func NewOAuthHandler(userRepo *postgres.UserRepository, projectRepo *postgres.ProjectRepository, jwtManager *auth.JWTManager, clientID, clientSecret, redirectURL string) *OAuthHandler {
 	frontendURL := os.Getenv("FLEXFLAG_FRONTEND_URL")
 	if frontendURL == "" {
 		frontendURL = "http://localhost:3000"
 	}
 	return &OAuthHandler{
 		userRepo:    userRepo,
+		projectRepo: projectRepo,
 		jwtManager:  jwtManager,
 		frontendURL: frontendURL,
 		googleOAuth: &oauth2.Config{
@@ -182,15 +184,16 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 	// Check if user exists
 	fmt.Printf("Checking if user exists: %s\n", userInfo.Email)
 	user, err := h.userRepo.GetByEmail(c.Request.Context(), userInfo.Email)
+	isNewUser := false
 	if err != nil {
 		// User doesn't exist, create new user
 		fmt.Println("User not found, creating new user...")
 		user = &types.User{
 			Email:        userInfo.Email,
 			FullName:     userInfo.Name,
-			Role:         types.UserRoleAdmin,
+			Role:         types.UserRoleEditor,
 			IsActive:     true,
-			PasswordHash: "", // No password for OAuth users
+			PasswordHash: "",
 		}
 
 		if err := h.userRepo.Create(c.Request.Context(), user); err != nil {
@@ -200,8 +203,24 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 			return
 		}
 		fmt.Printf("User created successfully: %s\n", user.ID)
+		isNewUser = true
 	} else {
 		fmt.Printf("Existing user found: %s\n", user.ID)
+	}
+
+	// Auto-create a personal project for new OAuth users
+	if isNewUser && h.projectRepo != nil {
+		slug := "my-project-" + user.ID[:8]
+		project := &types.Project{
+			Slug:      slug,
+			Name:      userInfo.Name + "'s Project",
+			CreatedBy: user.ID,
+			IsActive:  true,
+			Settings:  make(map[string]interface{}),
+		}
+		if err := h.projectRepo.Create(c.Request.Context(), project); err != nil {
+			fmt.Printf("Warning: failed to create default project for user: %v\n", err)
+		}
 	}
 
 	// Generate JWT token

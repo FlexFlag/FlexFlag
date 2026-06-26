@@ -158,7 +158,16 @@ func (h *ProjectHandler) ListProjects(c *gin.Context) {
 		offset = 0
 	}
 
-	projects, err := h.projectRepo.List(c.Request.Context(), limit, offset)
+	userRole, _ := c.Get("user_role")
+	userID, _ := c.Get("user_id")
+
+	var projects interface{}
+	var err error
+	if userRole == "admin" {
+		projects, err = h.projectRepo.List(c.Request.Context(), limit, offset)
+	} else {
+		projects, err = h.projectRepo.ListByUser(c.Request.Context(), userID.(string), limit, offset)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list projects"})
 		return

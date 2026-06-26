@@ -167,6 +167,45 @@ func (r *ProjectRepository) List(ctx context.Context, limit, offset int) ([]*typ
 	return projects, nil
 }
 
+// ListByUser returns projects created by a specific user
+func (r *ProjectRepository) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*types.Project, error) {
+	query := `
+		SELECT id, key, name, description, created_by, is_active, settings, created_at, updated_at
+		FROM projects
+		WHERE created_by = $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+	rows, err := r.db.QueryContext(ctx, query, userID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list projects by user: %w", err)
+	}
+	defer rows.Close()
+
+	var projects []*types.Project
+	for rows.Next() {
+		project := &types.Project{}
+		var settingsJSON []byte
+		var createdBy sql.NullString
+		err := rows.Scan(
+			&project.ID, &project.Slug, &project.Name, &project.Description,
+			&createdBy, &project.IsActive, &settingsJSON, &project.CreatedAt, &project.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan project: %w", err)
+		}
+		if createdBy.Valid {
+			project.CreatedBy = createdBy.String
+		}
+		if len(settingsJSON) > 0 {
+			json.Unmarshal(settingsJSON, &project.Settings)
+		} else {
+			project.Settings = make(map[string]interface{})
+		}
+		projects = append(projects, project)
+	}
+	return projects, nil
+}
+
 // Update updates a project
 func (r *ProjectRepository) Update(ctx context.Context, project *types.Project) error {
 	query := `
