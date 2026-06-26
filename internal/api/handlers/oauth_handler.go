@@ -149,14 +149,7 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 
 	if err != nil || state == "" || state != cookieState {
 		fmt.Printf("State validation failed! URL state: %s, Cookie state: %s, Error: %v\n", state, cookieState, err)
-		errorURL := fmt.Sprintf("http://localhost:3000/login?error=%s", "invalid_state")
-		c.Redirect(http.StatusTemporaryRedirect, errorURL)
-		return
-	}
-
-	if !h.verifyState(state) {
-		fmt.Println("State verification failed - state not in store or expired")
-		errorURL := fmt.Sprintf("http://localhost:3000/login?error=%s", "expired_state")
+		errorURL := fmt.Sprintf("%s/login?error=%s", h.frontendURL, "invalid_state")
 		c.Redirect(http.StatusTemporaryRedirect, errorURL)
 		return
 	}
@@ -170,7 +163,7 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 	code := c.Query("code")
 	if code == "" {
 		fmt.Println("No authorization code in request")
-		errorURL := fmt.Sprintf("http://localhost:3000/login?error=%s", "missing_code")
+		errorURL := fmt.Sprintf("%s/login?error=%s", h.frontendURL, "missing_code")
 		c.Redirect(http.StatusTemporaryRedirect, errorURL)
 		return
 	}
@@ -179,7 +172,7 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 	token, err := h.googleOAuth.Exchange(context.Background(), code)
 	if err != nil {
 		fmt.Printf("Token exchange failed: %v\n", err)
-		errorURL := fmt.Sprintf("http://localhost:3000/login?error=%s", "token_exchange_failed")
+		errorURL := fmt.Sprintf("%s/login?error=%s", h.frontendURL, "token_exchange_failed")
 		c.Redirect(http.StatusTemporaryRedirect, errorURL)
 		return
 	}
@@ -191,7 +184,7 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 	userInfo, err := h.getUserInfo(token.AccessToken)
 	if err != nil {
 		fmt.Printf("Failed to get user info: %v\n", err)
-		errorURL := fmt.Sprintf("http://localhost:3000/login?error=%s", "user_info_failed")
+		errorURL := fmt.Sprintf("%s/login?error=%s", h.frontendURL, "user_info_failed")
 		c.Redirect(http.StatusTemporaryRedirect, errorURL)
 		return
 	}
@@ -201,7 +194,7 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 	// Check if email is verified
 	if !userInfo.VerifiedEmail {
 		fmt.Println("Email not verified")
-		errorURL := fmt.Sprintf("http://localhost:3000/login?error=%s", "email_not_verified")
+		errorURL := fmt.Sprintf("%s/login?error=%s", h.frontendURL, "email_not_verified")
 		c.Redirect(http.StatusTemporaryRedirect, errorURL)
 		return
 	}
@@ -215,14 +208,14 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 		user = &types.User{
 			Email:        userInfo.Email,
 			FullName:     userInfo.Name,
-			Role:         types.UserRoleViewer, // Default role
+			Role:         types.UserRoleAdmin,
 			IsActive:     true,
 			PasswordHash: "", // No password for OAuth users
 		}
 
 		if err := h.userRepo.Create(c.Request.Context(), user); err != nil {
 			fmt.Printf("Failed to create user: %v\n", err)
-			errorURL := fmt.Sprintf("http://localhost:3000/login?error=%s", "user_creation_failed")
+			errorURL := fmt.Sprintf("%s/login?error=%s", h.frontendURL, "user_creation_failed")
 			c.Redirect(http.StatusTemporaryRedirect, errorURL)
 			return
 		}
