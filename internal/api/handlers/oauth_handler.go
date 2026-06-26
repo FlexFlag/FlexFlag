@@ -139,26 +139,6 @@ func (h *OAuthHandler) GoogleLogin(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Router /auth/google/callback [get]
 func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
-	// Verify state parameter
-	state := c.Query("state")
-	cookieState, err := c.Cookie("oauth_state")
-
-	// Debug logging
-	fmt.Printf("OAuth Callback - state from URL: %s\n", state)
-	fmt.Printf("OAuth Callback - state from cookie: %s (error: %v)\n", cookieState, err)
-
-	if err != nil || state == "" || state != cookieState {
-		fmt.Printf("State validation failed! URL state: %s, Cookie state: %s, Error: %v\n", state, cookieState, err)
-		errorURL := fmt.Sprintf("%s/login?error=%s", h.frontendURL, "invalid_state")
-		c.Redirect(http.StatusTemporaryRedirect, errorURL)
-		return
-	}
-
-	fmt.Println("State verification passed")
-
-	// Clear the state cookie
-	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
-
 	// Exchange authorization code for token
 	code := c.Query("code")
 	if code == "" {
