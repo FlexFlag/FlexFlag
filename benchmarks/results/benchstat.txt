@@ -1,0 +1,131 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/flexflag/flexflag/internal/api/handlers
+cpu: Apple M2
+                                          │ /Users/rizwanadam/Desktop/FlexFlag/FlexFlag/benchmarks/results/bench_raw.txt │
+                                          │                                    sec/op                                    │
+Propagation_RWMutex-8                                                                                       114.0n ± ∞ ¹
+Propagation_AtomicSnapshot-8                                                                                16.39n ± ∞ ¹
+Propagation_RWMutex_NoWriter-8                                                                              115.6n ± ∞ ¹
+Propagation_AtomicSnapshot_NoWriter-8                                                                       12.71n ± ∞ ¹
+Hash_ByteConversion-8                                                                                       82.59n ± ∞ ¹
+Hash_IOWriteString-8                                                                                        187.0n ± ∞ ¹
+Hash_UnsafeStringData-8                                                                                     83.68n ± ∞ ¹
+Response_MarshalPerRequest-8                                                                                2.794µ ± ∞ ¹
+Response_PreSerialized-8                                                                                    1.405µ ± ∞ ¹
+Layer1_ResponseCacheHit-8                                                                                   3.491µ ± ∞ ¹
+Layer2_PrecomputedHit_CacheMiss-8                                                                           12.65µ ± ∞ ¹
+Layer3_DualMutex_ConcurrentMixed-8                                                                          8.043µ ± ∞ ¹
+Batch_Simple_Sequential/N=1-8                                                                               134.5n ± ∞ ¹
+Batch_Simple_Sequential/N=4-8                                                                               438.1n ± ∞ ¹
+Batch_Simple_Sequential/N=8-8                                                                               844.3n ± ∞ ¹
+Batch_Simple_Sequential/N=16-8                                                                              1.847µ ± ∞ ¹
+Batch_Simple_Sequential/N=32-8                                                                              3.102µ ± ∞ ¹
+Batch_Simple_Parallel/N=1-8                                                                                 1.175µ ± ∞ ¹
+Batch_Simple_Parallel/N=4-8                                                                                 3.320µ ± ∞ ¹
+Batch_Simple_Parallel/N=8-8                                                                                 5.734µ ± ∞ ¹
+Batch_Simple_Parallel/N=16-8                                                                                9.661µ ± ∞ ¹
+Batch_Simple_Parallel/N=32-8                                                                                16.32µ ± ∞ ¹
+Batch_Targeting_Sequential/N=1-8                                                                            197.2n ± ∞ ¹
+Batch_Targeting_Sequential/N=4-8                                                                            711.5n ± ∞ ¹
+Batch_Targeting_Sequential/N=8-8                                                                            1.481µ ± ∞ ¹
+Batch_Targeting_Sequential/N=16-8                                                                           2.841µ ± ∞ ¹
+Batch_Targeting_Sequential/N=32-8                                                                           5.491µ ± ∞ ¹
+Batch_Targeting_Parallel/N=1-8                                                                              1.276µ ± ∞ ¹
+Batch_Targeting_Parallel/N=4-8                                                                              3.466µ ± ∞ ¹
+Batch_Targeting_Parallel/N=8-8                                                                              6.369µ ± ∞ ¹
+Batch_Targeting_Parallel/N=16-8                                                                             11.02µ ± ∞ ¹
+Batch_Targeting_Parallel/N=32-8                                                                             16.84µ ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=1-8                                                                    174.9n ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=4-8                                                                    677.3n ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=8-8                                                                    1.346µ ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=16-8                                                                   2.637µ ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=32-8                                                                   5.860µ ± ∞ ¹
+geomean                                                                                                     1.155µ
+¹ need >= 6 samples for confidence interval at level 0.95
+
+                                          │ /Users/rizwanadam/Desktop/FlexFlag/FlexFlag/benchmarks/results/bench_raw.txt │
+                                          │                                     B/op                                     │
+Propagation_RWMutex-8                                                                                        0.000 ± ∞ ¹
+Propagation_AtomicSnapshot-8                                                                                 0.000 ± ∞ ¹
+Propagation_RWMutex_NoWriter-8                                                                               0.000 ± ∞ ¹
+Propagation_AtomicSnapshot_NoWriter-8                                                                        0.000 ± ∞ ¹
+Hash_ByteConversion-8                                                                                        0.000 ± ∞ ¹
+Hash_IOWriteString-8                                                                                         72.00 ± ∞ ¹
+Hash_UnsafeStringData-8                                                                                      0.000 ± ∞ ¹
+Response_MarshalPerRequest-8                                                                                 640.0 ± ∞ ¹
+Response_PreSerialized-8                                                                                   1.016Ki ± ∞ ¹
+Layer1_ResponseCacheHit-8                                                                                  3.142Ki ± ∞ ¹
+Layer2_PrecomputedHit_CacheMiss-8                                                                          4.896Ki ± ∞ ¹
+Layer3_DualMutex_ConcurrentMixed-8                                                                         3.860Ki ± ∞ ¹
+Batch_Simple_Sequential/N=1-8                                                                                64.00 ± ∞ ¹
+Batch_Simple_Sequential/N=4-8                                                                                224.0 ± ∞ ¹
+Batch_Simple_Sequential/N=8-8                                                                                448.0 ± ∞ ¹
+Batch_Simple_Sequential/N=16-8                                                                             1.000Ki ± ∞ ¹
+Batch_Simple_Sequential/N=32-8                                                                             2.000Ki ± ∞ ¹
+Batch_Simple_Parallel/N=1-8                                                                                  176.0 ± ∞ ¹
+Batch_Simple_Parallel/N=4-8                                                                                  624.0 ± ∞ ¹
+Batch_Simple_Parallel/N=8-8                                                                                1.203Ki ± ∞ ¹
+Batch_Simple_Parallel/N=16-8                                                                               2.516Ki ± ∞ ¹
+Batch_Simple_Parallel/N=32-8                                                                               5.016Ki ± ∞ ¹
+Batch_Targeting_Sequential/N=1-8                                                                             64.00 ± ∞ ¹
+Batch_Targeting_Sequential/N=4-8                                                                             224.0 ± ∞ ¹
+Batch_Targeting_Sequential/N=8-8                                                                             448.0 ± ∞ ¹
+Batch_Targeting_Sequential/N=16-8                                                                          1.000Ki ± ∞ ¹
+Batch_Targeting_Sequential/N=32-8                                                                          2.000Ki ± ∞ ¹
+Batch_Targeting_Parallel/N=1-8                                                                               176.0 ± ∞ ¹
+Batch_Targeting_Parallel/N=4-8                                                                               624.0 ± ∞ ¹
+Batch_Targeting_Parallel/N=8-8                                                                             1.203Ki ± ∞ ¹
+Batch_Targeting_Parallel/N=16-8                                                                            2.516Ki ± ∞ ¹
+Batch_Targeting_Parallel/N=32-8                                                                            5.016Ki ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=1-8                                                                     64.00 ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=4-8                                                                     224.0 ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=8-8                                                                     448.0 ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=16-8                                                                  1.000Ki ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=32-8                                                                  2.000Ki ± ∞ ¹
+geomean                                                                                                                ²
+¹ need >= 6 samples for confidence interval at level 0.95
+² summaries must be >0 to compute geomean
+
+                                          │ /Users/rizwanadam/Desktop/FlexFlag/FlexFlag/benchmarks/results/bench_raw.txt │
+                                          │                                  allocs/op                                   │
+Propagation_RWMutex-8                                                                                        0.000 ± ∞ ¹
+Propagation_AtomicSnapshot-8                                                                                 0.000 ± ∞ ¹
+Propagation_RWMutex_NoWriter-8                                                                               0.000 ± ∞ ¹
+Propagation_AtomicSnapshot_NoWriter-8                                                                        0.000 ± ∞ ¹
+Hash_ByteConversion-8                                                                                        0.000 ± ∞ ¹
+Hash_IOWriteString-8                                                                                         2.000 ± ∞ ¹
+Hash_UnsafeStringData-8                                                                                      0.000 ± ∞ ¹
+Response_MarshalPerRequest-8                                                                                 15.00 ± ∞ ¹
+Response_PreSerialized-8                                                                                     8.000 ± ∞ ¹
+Layer1_ResponseCacheHit-8                                                                                    29.00 ± ∞ ¹
+Layer2_PrecomputedHit_CacheMiss-8                                                                            63.00 ± ∞ ¹
+Layer3_DualMutex_ConcurrentMixed-8                                                                           43.00 ± ∞ ¹
+Batch_Simple_Sequential/N=1-8                                                                                1.000 ± ∞ ¹
+Batch_Simple_Sequential/N=4-8                                                                                1.000 ± ∞ ¹
+Batch_Simple_Sequential/N=8-8                                                                                1.000 ± ∞ ¹
+Batch_Simple_Sequential/N=16-8                                                                               1.000 ± ∞ ¹
+Batch_Simple_Sequential/N=32-8                                                                               1.000 ± ∞ ¹
+Batch_Simple_Parallel/N=1-8                                                                                  3.000 ± ∞ ¹
+Batch_Simple_Parallel/N=4-8                                                                                  6.000 ± ∞ ¹
+Batch_Simple_Parallel/N=8-8                                                                                  10.00 ± ∞ ¹
+Batch_Simple_Parallel/N=16-8                                                                                 18.00 ± ∞ ¹
+Batch_Simple_Parallel/N=32-8                                                                                 34.00 ± ∞ ¹
+Batch_Targeting_Sequential/N=1-8                                                                             1.000 ± ∞ ¹
+Batch_Targeting_Sequential/N=4-8                                                                             1.000 ± ∞ ¹
+Batch_Targeting_Sequential/N=8-8                                                                             1.000 ± ∞ ¹
+Batch_Targeting_Sequential/N=16-8                                                                            1.000 ± ∞ ¹
+Batch_Targeting_Sequential/N=32-8                                                                            1.000 ± ∞ ¹
+Batch_Targeting_Parallel/N=1-8                                                                               3.000 ± ∞ ¹
+Batch_Targeting_Parallel/N=4-8                                                                               6.000 ± ∞ ¹
+Batch_Targeting_Parallel/N=8-8                                                                               10.00 ± ∞ ¹
+Batch_Targeting_Parallel/N=16-8                                                                              18.00 ± ∞ ¹
+Batch_Targeting_Parallel/N=32-8                                                                              34.00 ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=1-8                                                                     1.000 ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=4-8                                                                     1.000 ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=8-8                                                                     1.000 ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=16-8                                                                    1.000 ± ∞ ¹
+Batch_Targeting_RWMutex_Sequential/N=32-8                                                                    1.000 ± ∞ ¹
+geomean                                                                                                                ²
+¹ need >= 6 samples for confidence interval at level 0.95
+² summaries must be >0 to compute geomean

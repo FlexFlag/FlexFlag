@@ -312,7 +312,7 @@ func TestEvaluationHandler_Evaluate_Success(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -366,7 +366,7 @@ func TestEvaluationHandler_Evaluate_FlagNotFound(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	mockRepo.On("GetByKey", mock.Anything, "nonexistent-flag", "production").Return(nil, fmt.Errorf("not found"))
 	
@@ -402,7 +402,7 @@ func TestEvaluationHandler_Evaluate_DisabledFlag(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	disabledFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -451,7 +451,7 @@ func TestEvaluationHandler_Evaluate_InvalidRequest(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	// Missing required flag_key
 	requestBody := map[string]interface{}{
@@ -482,7 +482,7 @@ func TestEvaluationHandler_BatchEvaluate_Success(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	// Setup first flag
 	flag1 := &types.Flag{
@@ -555,7 +555,7 @@ func TestEvaluationHandler_BatchEvaluate_SomeFlagsNotFound(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	// Setup only one flag, the other will return an error
 	flag1 := &types.Flag{
@@ -614,7 +614,7 @@ func TestEvaluationHandler_BatchEvaluate_InvalidRequest(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	// Missing required flag_keys
 	requestBody := map[string]interface{}{
@@ -645,7 +645,7 @@ func TestEvaluationHandler_Evaluate_DatabaseError(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	// Mock database error
 	mockRepo.On("GetByKey", mock.Anything, "test-flag", "production").Return(nil, fmt.Errorf("database connection failed"))
@@ -684,7 +684,7 @@ func TestEvaluationHandler_Evaluate_WithProject(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -737,7 +737,7 @@ func TestEvaluationHandler_BatchEvaluate_DatabaseError(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	// Mock database error for first flag
 	mockRepo.On("GetByKey", mock.Anything, "flag-1", "production").Return(nil, fmt.Errorf("database error"))
@@ -780,7 +780,7 @@ func TestEvaluationHandler_Evaluate_RolloutError(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -833,7 +833,7 @@ func TestEvaluationHandler_Evaluate_WithAPIKeyAuth(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -890,7 +890,7 @@ func TestEvaluationHandler_BatchEvaluate_WithAPIKeyAuth(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -947,7 +947,7 @@ func TestEvaluationHandler_BatchEvaluate_WithProject(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -1003,7 +1003,7 @@ func TestEvaluationHandler_Evaluate_PercentageRollout_Match(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -1066,7 +1066,7 @@ func TestEvaluationHandler_Evaluate_PercentageRollout_NoMatch(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -1131,7 +1131,7 @@ func TestEvaluationHandler_Evaluate_ExperimentRollout_WithVariation(t *testing.T
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -1206,7 +1206,7 @@ func TestEvaluationHandler_Evaluate_StickyAssignment_Found(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -1282,7 +1282,7 @@ func TestEvaluationHandler_Evaluate_NumberFlagType(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -1331,7 +1331,7 @@ func TestEvaluationHandler_Evaluate_JSONFlagType(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -1384,7 +1384,7 @@ func TestEvaluationHandler_BatchEvaluate_DisabledFlag(t *testing.T) {
 	
 	mockRepo := new(MockEvalFlagRepository)
 	mockRolloutRepo := new(MockRolloutRepository)
-	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo)
+	handler := handlers.NewEvaluationHandler(mockRepo, mockRolloutRepo, nil)
 	
 	disabledFlag := &types.Flag{
 		ID:          uuid.New().String(),

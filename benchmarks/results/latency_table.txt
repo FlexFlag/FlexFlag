@@ -1,0 +1,59 @@
+Latency Harness Results
+========================
+impl=rwmutex scenario=none readers=8 duration=10s
+p50=512ns p95=1024ns p99=1024ns p999=2048ns total=73789317
+
+impl=rwmutex scenario=steady readers=8 duration=10s
+p50=512ns p95=1024ns p99=1024ns p999=2048ns total=72672815
+
+impl=rwmutex scenario=burst readers=8 duration=10s
+p50=512ns p95=1024ns p99=1024ns p999=2048ns total=74364502
+
+impl=rwmutex scenario=highwrite readers=8 duration=10s
+p50=128ns p95=512ns p99=16384ns p999=131072ns total=49051195
+
+impl=snapshot scenario=none readers=8 duration=10s
+p50=64ns p95=64ns p99=128ns p999=128ns total=297074386
+
+impl=snapshot scenario=steady readers=8 duration=10s
+p50=64ns p95=128ns p99=128ns p999=256ns total=281690753
+
+impl=snapshot scenario=burst readers=8 duration=10s
+p50=64ns p95=128ns p99=128ns p999=256ns total=271557824
+
+impl=snapshot scenario=highwrite readers=8 duration=10s
+p50=64ns p95=128ns p99=128ns p999=256ns total=218317810
+
+Analysis
+=========
+NOTE: These are wall-clock measurements including time.Now()/time.Since() overhead
+(~50-100ns on macOS). The absolute ns values should be interpreted as relative
+comparisons, not raw lock costs.
+
+Scenario   | RWMutex p50 | RWMutex p99 | RWMutex p999 | Snapshot p50 | Snapshot p99 | Snapshot p999
+-----------+-------------+-------------+--------------+--------------+--------------+--------------
+none       |   512ns     |  1024ns     |   2048ns     |    64ns      |   128ns      |   128ns
+steady     |   512ns     |  1024ns     |   2048ns     |    64ns      |   128ns      |   256ns
+burst      |   512ns     |  1024ns     |   2048ns     |    64ns      |   128ns      |   256ns
+highwrite  |   128ns*    | 16384ns     | 131072ns     |    64ns      |   128ns      |   256ns
+
+*RWMutex p50 improves under highwrite because reads that DO run complete faster
+ when writer holds the lock briefly (less contention on the read path itself);
+ the degradation is visible at tail latencies (p99/p999).
+
+Answer to "World (a) or (b)?"
+==============================
+World (b) at ≤100 writes/sec: RWMutex does NOT degrade. p99 and p999 are
+identical across none/steady/burst scenarios. The write rate is too low to
+meaningfully block reader goroutines.
+
+World (a) emerges at continuous (saturated) write rate (highwrite scenario):
+  - RWMutex p99 spikes from 1024ns → 16384ns (16x increase)
+  - RWMutex p999 spikes from 2048ns → 131072ns (64x increase)
+  - Snapshot p99/p999 remain flat at 128-256ns regardless of write pressure
+
+The degradation threshold is between 100 writes/sec (no effect) and
+saturated continuous writes (~tens of thousands/sec). In a real flag system,
+flag updates are measured in writes/hour, so RWMutex tail latency degradation
+is unlikely in production — but the atomic snapshot approach is immune by design
+and demonstrates the principle clearly.

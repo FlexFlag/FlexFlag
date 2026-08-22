@@ -1,0 +1,36 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/flexflag/flexflag/internal/api/handlers
+cpu: Apple M2
+BenchmarkHash_ByteConversion-8     	75776989	        90.73 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_ByteConversion-8     	66712747	        87.96 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_ByteConversion-8     	77064979	        91.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_ByteConversion-8     	66318432	        88.84 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_ByteConversion-8     	66425382	       109.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_ByteConversion-8     	46074108	       143.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_ByteConversion-8     	42103182	       164.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_ByteConversion-8     	57181238	       140.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_ByteConversion-8     	47066744	       110.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_ByteConversion-8     	77530732	        78.66 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_IOWriteString-8      	36673396	       212.4 ns/op	      72 B/op	       2 allocs/op
+BenchmarkHash_IOWriteString-8      	34023867	       306.6 ns/op	      72 B/op	       2 allocs/op
+BenchmarkHash_IOWriteString-8      	26567176	       247.7 ns/op	      72 B/op	       2 allocs/op
+BenchmarkHash_IOWriteString-8      	28021849	       209.4 ns/op	      72 B/op	       2 allocs/op
+BenchmarkHash_IOWriteString-8      	26421430	       212.8 ns/op	      72 B/op	       2 allocs/op
+BenchmarkHash_IOWriteString-8      	33984522	       235.9 ns/op	      72 B/op	       2 allocs/op
+BenchmarkHash_IOWriteString-8      	33794145	       186.5 ns/op	      72 B/op	       2 allocs/op
+BenchmarkHash_IOWriteString-8      	28863163	       259.4 ns/op	      72 B/op	       2 allocs/op
+BenchmarkHash_IOWriteString-8      	25995340	       208.7 ns/op	      72 B/op	       2 allocs/op
+BenchmarkHash_IOWriteString-8      	33961639	       203.1 ns/op	      72 B/op	       2 allocs/op
+BenchmarkHash_UnsafeStringData-8   	66314683	        86.05 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_UnsafeStringData-8   	70323555	       111.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_UnsafeStringData-8   	74180056	        84.68 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_UnsafeStringData-8   	77538914	        86.74 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_UnsafeStringData-8   	77572497	        77.62 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_UnsafeStringData-8   	77588714	        80.37 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_UnsafeStringData-8   	67385338	        81.45 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_UnsafeStringData-8   	77625394	        77.53 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_UnsafeStringData-8   	77560590	        78.67 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHash_UnsafeStringData-8   	77587418	        77.30 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/flexflag/flexflag/internal/api/handlers	227.000s

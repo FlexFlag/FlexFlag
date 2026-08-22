@@ -94,7 +94,7 @@ All config uses `FLEXFLAG_` prefix:
 ## Performance Characteristics
 
 ### Current Benchmarks
-- Ultra-fast evaluation: 95th percentile ~0.1ms (317x improvement over standard)
+- Ultra-fast evaluation: ~3.5µs (response-cache hit) / ~13µs (cache miss) — see BENCHMARKS.md for measured numbers
 - Standard evaluation: ~2-6ms
 - Batch evaluation: ~0.5-1ms per flag
 - Target: <10ms (achieved)

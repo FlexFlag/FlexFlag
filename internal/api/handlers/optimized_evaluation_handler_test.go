@@ -21,7 +21,7 @@ func TestOptimizedEvaluationHandler_FastEvaluate_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockFlagRepository)
-	handler := handlers.NewOptimizedEvaluationHandler(mockRepo)
+	handler := handlers.NewOptimizedEvaluationHandler(mockRepo, nil)
 
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -72,7 +72,7 @@ func TestOptimizedEvaluationHandler_FastEvaluate_InvalidRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockFlagRepository)
-	handler := handlers.NewOptimizedEvaluationHandler(mockRepo)
+	handler := handlers.NewOptimizedEvaluationHandler(mockRepo, nil)
 
 	// Missing required flag_key
 	requestBody := map[string]interface{}{
@@ -102,7 +102,7 @@ func TestOptimizedEvaluationHandler_FastEvaluate_FlagNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockFlagRepository)
-	handler := handlers.NewOptimizedEvaluationHandler(mockRepo)
+	handler := handlers.NewOptimizedEvaluationHandler(mockRepo, nil)
 
 	mockRepo.On("GetByKey", mock.Anything, "nonexistent-flag", "production").Return(nil, fmt.Errorf("flag not found"))
 
@@ -136,7 +136,7 @@ func TestOptimizedEvaluationHandler_FastBatchEvaluate_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockFlagRepository)
-	handler := handlers.NewOptimizedEvaluationHandler(mockRepo)
+	handler := handlers.NewOptimizedEvaluationHandler(mockRepo, nil)
 
 	// Setup flags
 	flag1 := &types.Flag{
@@ -206,7 +206,7 @@ func TestOptimizedEvaluationHandler_FastBatchEvaluate_InvalidRequest(t *testing.
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockFlagRepository)
-	handler := handlers.NewOptimizedEvaluationHandler(mockRepo)
+	handler := handlers.NewOptimizedEvaluationHandler(mockRepo, nil)
 
 	// Missing required flag_keys
 	requestBody := map[string]interface{}{
@@ -236,7 +236,7 @@ func TestOptimizedEvaluationHandler_GetCacheStats_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockFlagRepository)
-	handler := handlers.NewOptimizedEvaluationHandler(mockRepo)
+	handler := handlers.NewOptimizedEvaluationHandler(mockRepo, nil)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -260,7 +260,7 @@ func TestOptimizedEvaluationHandler_ClearCache_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockFlagRepository)
-	handler := handlers.NewOptimizedEvaluationHandler(mockRepo)
+	handler := handlers.NewOptimizedEvaluationHandler(mockRepo, nil)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -281,7 +281,7 @@ func TestOptimizedEvaluationHandler_FastEvaluate_WithProjectID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockFlagRepository)
-	handler := handlers.NewOptimizedEvaluationHandler(mockRepo)
+	handler := handlers.NewOptimizedEvaluationHandler(mockRepo, nil)
 
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -330,7 +330,7 @@ func TestOptimizedEvaluationHandler_FastEvaluate_DisabledFlag(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockFlagRepository)
-	handler := handlers.NewOptimizedEvaluationHandler(mockRepo)
+	handler := handlers.NewOptimizedEvaluationHandler(mockRepo, nil)
 
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -377,7 +377,7 @@ func TestOptimizedEvaluationHandler_FastBatchEvaluate_WithProjectID(t *testing.T
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockFlagRepository)
-	handler := handlers.NewOptimizedEvaluationHandler(mockRepo)
+	handler := handlers.NewOptimizedEvaluationHandler(mockRepo, nil)
 
 	expectedFlag := &types.Flag{
 		ID:          uuid.New().String(),
@@ -429,7 +429,7 @@ func TestOptimizedEvaluationHandler_FastBatchEvaluate_DisabledFlags(t *testing.T
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := new(MockFlagRepository)
-	handler := handlers.NewOptimizedEvaluationHandler(mockRepo)
+	handler := handlers.NewOptimizedEvaluationHandler(mockRepo, nil)
 
 	disabledFlag := &types.Flag{
 		ID:          uuid.New().String(),

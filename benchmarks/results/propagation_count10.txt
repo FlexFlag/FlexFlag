@@ -1,0 +1,46 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/flexflag/flexflag/internal/api/handlers
+cpu: Apple M2
+BenchmarkPropagation_RWMutex-8                   	20725977	       118.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex-8                   	21934208	       135.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex-8                   	17656448	       114.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex-8                   	21118441	       117.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex-8                   	19128967	       119.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex-8                   	19939171	       108.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex-8                   	28059098	       126.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex-8                   	20097500	       101.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex-8                   	21802588	       110.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex-8                   	21300639	       111.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot-8            	128903048	        24.76 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot-8            	126581078	        17.02 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot-8            	147839532	        17.93 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot-8            	169200607	        17.07 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot-8            	142290799	        17.74 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot-8            	86042833	        25.61 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot-8            	100000000	        47.06 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot-8            	74447460	        41.05 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot-8            	100000000	        24.16 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot-8            	100000000	        24.25 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex_NoWriter-8          	20211099	       128.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex_NoWriter-8          	17415555	       126.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex_NoWriter-8          	18197217	       123.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex_NoWriter-8          	36094929	       131.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex_NoWriter-8          	17837482	       140.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex_NoWriter-8          	18406154	       126.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex_NoWriter-8          	32383164	        99.91 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex_NoWriter-8          	31247083	       122.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex_NoWriter-8          	17867312	       118.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_RWMutex_NoWriter-8          	30915848	       127.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot_NoWriter-8   	129837148	        17.37 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot_NoWriter-8   	131647167	        17.50 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot_NoWriter-8   	100000000	        26.33 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot_NoWriter-8   	145385367	        14.70 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot_NoWriter-8   	151299345	        13.74 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot_NoWriter-8   	120766582	        23.76 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot_NoWriter-8   	128318850	        15.98 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot_NoWriter-8   	145393905	        15.12 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot_NoWriter-8   	146843506	        17.93 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPropagation_AtomicSnapshot_NoWriter-8   	168965779	        16.04 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/flexflag/flexflag/internal/api/handlers	137.364s

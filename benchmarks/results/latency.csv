@@ -1,0 +1,9 @@
+impl,scenario,readers,p50_ns,p95_ns,p99_ns,p999_ns,total_reads
+rwmutex,none,8,512,1024,1024,2048,73789317
+rwmutex,steady,8,512,1024,1024,2048,72672815
+rwmutex,burst,8,512,1024,1024,2048,74364502
+snapshot,none,8,64,64,128,128,297074386
+snapshot,steady,8,64,128,128,256,281690753
+snapshot,burst,8,64,128,128,256,271557824
+rwmutex,highwrite,8,128,512,16384,131072,49051195
+snapshot,highwrite,8,64,128,128,256,218317810

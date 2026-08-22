@@ -504,8 +504,8 @@ FlexFlag is optimized for high-performance flag evaluation:
 ### Current Performance (Local Testing)
 
 - **Standard Evaluation**: ~2-6ms per request
-- **Optimized Evaluation**: ~0.5-1ms per request  
-- **Ultra-Fast Evaluation**: ~0.1ms per request (317x improvement)
+- **Optimized Evaluation**: ~0.5-1ms per request [estimated]
+- **Ultra-Fast Evaluation**: ~3.5µs response-cache hit / ~13µs cache miss (measured — see BENCHMARKS.md)
 - **Edge Server Evaluation**: <1ms per request
 - **Throughput**: >10,000 evaluations/second per edge server
 
@@ -806,7 +806,7 @@ FlexFlag uses a modern, distributed architecture:
 
 1. **Standard Evaluation** (~2-6ms): Direct database queries
 2. **Optimized Evaluation** (~0.5-1ms): With Redis caching  
-3. **Ultra-Fast Evaluation** (~0.1ms): Pre-computed in-memory flags
+3. **Ultra-Fast Evaluation** (~3.5µs cache hit / ~13µs cache miss): Pre-computed in-memory flags (see BENCHMARKS.md)
 4. **Edge Evaluation** (<1ms): Distributed edge servers with local cache
 
 Built with ❤️ by the FlexFlag team

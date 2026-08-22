@@ -1,0 +1,22 @@
+?   	github.com/flexflag/flexflag/api	[no test files]
+?   	github.com/flexflag/flexflag/benchmarks/latencyharness	[no test files]
+?   	github.com/flexflag/flexflag/cmd/cli	[no test files]
+?   	github.com/flexflag/flexflag/cmd/edge-server	[no test files]
+?   	github.com/flexflag/flexflag/cmd/migrator	[no test files]
+?   	github.com/flexflag/flexflag/cmd/server	[no test files]
+?   	github.com/flexflag/flexflag/internal/analytics	[no test files]
+ok  	github.com/flexflag/flexflag/internal/api/handlers	2.140s
+ok  	github.com/flexflag/flexflag/internal/api/middleware	2.529s
+?   	github.com/flexflag/flexflag/internal/approval	[no test files]
+ok  	github.com/flexflag/flexflag/internal/auth	31.254s
+ok  	github.com/flexflag/flexflag/internal/cache	4.075s
+ok  	github.com/flexflag/flexflag/internal/config	4.689s
+ok  	github.com/flexflag/flexflag/internal/core/evaluation	4.931s
+ok  	github.com/flexflag/flexflag/internal/core/rollout	3.509s
+ok  	github.com/flexflag/flexflag/internal/core/segment	3.495s
+?   	github.com/flexflag/flexflag/internal/edge	[no test files]
+ok  	github.com/flexflag/flexflag/internal/services	3.403s
+?   	github.com/flexflag/flexflag/internal/storage	[no test files]
+ok  	github.com/flexflag/flexflag/internal/storage/postgres	2.822s
+ok  	github.com/flexflag/flexflag/pkg/sdk	3.662s
+ok  	github.com/flexflag/flexflag/pkg/types	4.105s

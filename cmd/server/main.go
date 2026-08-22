@@ -298,6 +298,7 @@ func main() {
 		
 		// Ultra-fast flag evaluation
 		api.POST("/evaluate/ultra", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), ultraFastHandler.UltraFastEvaluate)
+		api.POST("/evaluate/ultra/batch", middleware.OptionalApiKeyAuth(apiKeyRepo), auth.OptionalAuth(jwtManager), ultraFastHandler.UltraFastBatchEvaluate)
 		api.GET("/evaluate/ultra/stats", auth.AuthMiddleware(jwtManager), ultraFastHandler.GetStats)
 		
 		// Edge server synchronization endpoints
